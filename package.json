@@ -1,0 +1,16 @@
+{
+  "name": "clauditor",
+  "version": "0.1.0",
+  "description": "Editor de vídeo por capas, sin render, que Claude controla por MCP mientras tú ves los cambios en directo",
+  "main": "app/main.js",
+  "scripts": {
+    "start": "electron .",
+    "servidor": "node src/servidor.js",
+    "mcp": "node src/mcp.js"
+  },
+  "keywords": ["video", "editor", "mcp", "claude", "electron"],
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.4.11"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "nombre": "Proyecto de ejemplo",
+  "puerto": 4310,
+  "fps": 30,
+  "medios": ["medios"],
+  "transcripciones": null,
+  "herramientas": {
+    "deepfilter": null,
+    "modeloDeepFilter": null
+  }
+}

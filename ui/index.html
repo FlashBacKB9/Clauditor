@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clauditor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap">
+<link rel="stylesheet" href="/ui/estilo.css">
+</head>
+<body>
+<header id="barra">
+  <strong id="titulo">Clauditor</strong>
+  <div class="controles">
+    <button id="bInicio" title="Al principio (Inicio)">⏮</button>
+    <button id="bAtras" title="Un fotograma atrás (←)">◀︎|</button>
+    <button id="bPlay" class="grande" title="Reproducir / parar (espacio)">▶</button>
+    <button id="bAdelante" title="Un fotograma adelante (→)">|▶︎</button>
+    <span id="tc">00:00:00</span><span id="tcTotal">/ 00:00:00</span>
+  </div>
+  <div class="controles">
+    <button id="bDividir" title="Dividir en el cabezal (S)">✂ Dividir</button>
+    <button id="bBorrar" title="Borrar selección (Supr). Mayús+Supr cierra el hueco">🗑 Borrar</button>
+    <button id="bDeshacer" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
+    <button id="bComentar" class="acento" title="Comentar en el cabezal (C)">💬 Comentar</button>
+  </div>
+  <div class="controles">
+    <label class="chk"><input type="checkbox" id="chkSubs" checked> Guion en el visor</label>
+    <label class="chk" title="Etiqueta en la esquina donde irá cada gráfico que falta por hacer"><input type="checkbox" id="chkGraficos" checked> Gráficos por hacer</label>
+    <button id="bMenos" title="Alejar (−)">−</button><button id="bAjustar" title="Ver todo">Ajustar</button><button id="bMas" title="Acercar (+)">+</button>
+  </div>
+  <span id="conexion" title="Conexión con el servidor">●</span>
+</header>
+
+<main id="arriba">
+  <aside id="medios">
+    <div class="cab">
+      <input id="filtro" placeholder="Buscar medio…">
+      <select id="filtroTipo"><option value="">Todo</option><option value="video">Vídeos</option><option value="foto">Fotos</option><option value="animacion">Animaciones</option><option value="audio">Audio</option></select>
+    </div>
+    <div id="listaMedios"></div>
+    <div class="pie" id="estadoProxies"></div>
+  </aside>
+
+  <section id="visorCaja">
+    <div id="visor"><div id="capas"></div><div id="subtitulo"></div><div id="aviso"></div></div>
+    <div id="infoPlano"></div>
+  </section>
+
+  <aside id="lateral">
+    <nav class="pestanas">
+      <button data-p="clip" class="activa">Clip</button>
+      <button data-p="comentarios">Comentarios <span id="nComentarios"></span></button>
+      <button data-p="actividad">Actividad</button>
+    </nav>
+    <div id="pClip" class="panel"></div>
+    <div id="pComentarios" class="panel oculto">
+      <form id="formComentario">
+        <div id="dondeComentario"></div>
+        <textarea id="textoComentario" rows="3" placeholder="Qué quieres cambiar aquí. Claude lo leerá cuando se lo pidas."></textarea>
+        <button type="submit" class="acento">Añadir comentario</button>
+        <label class="chk"><input type="checkbox" id="chkHechos"> Ver también los hechos</label>
+      </form>
+      <div id="listaComentarios"></div>
+    </div>
+    <div id="pActividad" class="panel oculto"><div id="listaActividad"></div></div>
+  </aside>
+</main>
+
+<div id="separador" title="Arrastra para cambiar el alto"></div>
+
+<section id="linea">
+  <div id="cabezasPistas"><div class="regla-hueco"></div></div>
+  <div id="scrollLinea">
+    <div id="lienzo">
+      <div id="regla"></div>
+      <div id="pistas"></div>
+      <div id="cabezal"><div class="asa"></div></div>
+    </div>
+  </div>
+</section>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

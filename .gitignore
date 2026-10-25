@@ -1,0 +1,9 @@
+node_modules/
+.clauditor/
+historial/
+*.log
+ejemplo/proyecto.json
+ejemplo/estado.json
+ejemplo/audio/
+ejemplo/medios/*
+!ejemplo/medios/.gitkeep
