@@ -2,6 +2,7 @@
 // (/api/ops), que lo guarda en proyecto.json; el servidor nos devuelve el proyecto por SSE, venga el cambio
 // de aquí o de Claude por MCP.
 const $ = s => document.querySelector(s);
+ponerIconos();
 const FPS = 30;
 const ALTO = { video: 52, notas: 40, audio: 40 };
 const enc = encodeURIComponent;
@@ -36,7 +37,7 @@ function tc(s, conFrames = true) {
 function nombreCorto(m) {
   if (!m) return "";
   const x = m.match(/^(VID|IMG)_\d{4}(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)/);
-  if (x) return `${x[1] === "IMG" ? "📷 " : ""}${x[3]}/${x[2]} ${x[4]}:${x[5]}:${x[6]}`;
+  if (x) return `${x[3]}/${x[2]} ${x[4]}:${x[5]}:${x[6]}`;
   return m.replace(/\.[^.]+$/, "");
 }
 function tipoMedio(m) {
@@ -280,11 +281,11 @@ function play() {
   if (t >= total() - 0.05) t = 0;
   reproduciendo = true; relojT = t; relojPerf = performance.now();
   if (ctxAudio && ctxAudio.state === "suspended") ctxAudio.resume();
-  $("#bPlay").textContent = "⏸";
+  $("#bPlay").innerHTML = ico("pause");
 }
 function parar() {
   reproduciendo = false;
-  $("#bPlay").textContent = "▶";
+  $("#bPlay").innerHTML = ico("play");
   for (const L of Object.values(capas)) L.v.forEach(v => v.pause());
   t = Math.round(t * FPS) / FPS;
   guardarCabezal();
@@ -340,15 +341,15 @@ function dibujarLinea() {
   for (const p of P.pistas) {
     const alto = ALTO[p.tipo];
     cab += `<div class="cabeza" style="height:${alto}px"><span class="id">${p.id}</span><span class="n" title="${esc(p.nombre)}">${esc(p.nombre)}</span>` +
-      (p.tipo !== "notas" ? `<button data-pista="${p.id}" data-acc="mute" class="${p.mute ? "off" : ""}" title="Silenciar pista">🔊</button>` : "") +
-      (p.tipo === "video" ? `<button data-pista="${p.id}" data-acc="oculta" class="${p.oculta ? "off" : ""}" title="Ocultar pista">👁</button>` : "") + `</div>`;
+      (p.tipo !== "notas" ? `<button data-pista="${p.id}" data-acc="mute" class="${p.mute ? "off" : ""}" title="Silenciar pista">${ico(p.mute ? "volume-off" : "volume")}</button>` : "") +
+      (p.tipo === "video" ? `<button data-pista="${p.id}" data-acc="oculta" class="${p.oculta ? "off" : ""}" title="Ocultar pista">${ico(p.oculta ? "eye-off" : "eye")}</button>` : "") + `</div>`;
     pis += `<div class="pista ${p.tipo}" data-pista="${p.id}" style="height:${alto}px">`;
     for (const c of P.clips.filter(c => c.pista === p.id)) {
       const tipo = tipoClip(c), w = c.duracion * pps;
       const clases = ["clip", tipo === "texto" ? (c.estilo === "etiqueta" ? "etiqueta" : c.color || "rosa") : tipo, sel.has(c.id) ? "sel" : "", c.opcional ? "opcional" : "", c.oculto ? "oculto-img" : "", comentados.has(c.id) ? "comentado" : ""].join(" ");
       const mini = ["video", "foto", "animacion"].includes(tipo) && w > 30 && p.tipo === "video"
         ? `<img loading="lazy" src="/miniatura/${enc(c.medio)}?t=${((c.entrada || 0) + 0.1).toFixed(1)}&w=160" alt="">` : "";
-      const iconos = (c.mute ? "🔇 " : "") + (c.oculto ? "◌ " : "") + (c.volumen !== undefined && c.volumen !== 1 ? `vol ${Math.round(c.volumen * 100)}% ` : "");
+      const iconos = (c.mute ? ico("volume-off") : "") + (c.oculto ? ico("circle-dashed") : "") + (c.volumen !== undefined && c.volumen !== 1 ? `vol ${Math.round(c.volumen * 100)}% ` : "");
       pis += `<div class="${clases}" data-id="${c.id}" style="left:${c.inicio * pps}px;width:${Math.max(w, 2)}px" title="${esc(c.id + " · " + etiquetaClip(c) + "\n" + (c.nota || ""))}">` +
         `${mini}<div class="et">${esc(etiquetaClip(c))}</div><div class="et2">${iconos}${c.duracion.toFixed(1)} s · ${c.id}</div>` +
         `<div class="asa i"></div><div class="asa d"></div></div>`;
@@ -654,7 +655,7 @@ function pintarEC() {
   $("#mcEfecto").textContent = !signo ? (Math.abs(EC.ent - (EC.c.entrada || 0)) > 1e-4 ? "Mismo largo: solo cambia qué trozo se ve" : "Sin cambios")
     : $("#mcCadena").checked ? `${detras} clips de detrás se ${cambio > 0 ? "retrasan" : "adelantan"} ${Math.abs(cambio).toFixed(2)} s`
     : cambio > 0 ? "Puede pisar al clip siguiente" : "Quedará un hueco detrás";
-  $("#mcPlay").textContent = EC.el && !EC.el.paused ? "❚❚" : "▶";
+  $("#mcPlay").innerHTML = ico(EC.el && !EC.el.paused ? "pause" : "play");
 }
 // Cambiar entrada / salida respetando el medio (0…D) y un largo mínimo de un fotograma
 function fijarEC(lado, s) {
@@ -819,7 +820,7 @@ function pintarInspector(forzar) {
         <div class="campo"><label>Posición</label><select data-k="posicion"><option value="centro" ${c.posicion === "centro" ? "selected" : ""}>Centro</option><option value="abajo" ${c.posicion === "abajo" ? "selected" : ""}>Abajo</option><option value="arriba" ${c.posicion === "arriba" ? "selected" : ""}>Arriba</option></select></div>` : ""}` : ""}
       <div class="campo"><label>Nota</label><textarea data-k="nota" rows="4">${esc(c.nota)}</textarea></div>
     </div>
-    <div class="bloque"><button id="iIr">Ir al inicio</button> <button id="iComentar" class="acento">💬 Comentar este clip</button></div>
+    <div class="bloque"><button id="iIr">Ir al inicio</button> <button id="iComentar" class="acento">${ico("message")} Comentar este clip</button></div>
     <div class="bloque" id="iTrans"></div>`;
   panel.querySelectorAll("[data-k]").forEach(inp => inp.addEventListener("change", () => {
     const k = inp.dataset.k;
@@ -913,7 +914,7 @@ function pintarMedios() {
     <div class="medio" draggable="true" data-m="${esc(m.clave)}" title="${esc(m.clave)}\nArrastra a una pista o haz doble clic para ponerlo en el cabezal">
       ${m.tipo === "audio" ? `<div class="sinimg"></div>` : `<img loading="lazy" src="/miniatura/${enc(m.clave)}?t=${m.tipo === "foto" ? 0 : 1}&w=128" alt="">`}
       <div style="min-width:0"><div class="nom">${esc(nombreCorto(m.clave))}</div>
-      <div class="sub">${m.tipo}${m.dur ? " · " + tc(m.dur, false) : ""}${m.listo ? "" : " · preparando"} ${usados.has(m.clave) ? `<span class="usado">● en uso</span>` : ""}</div></div>
+      <div class="sub">${m.tipo}${m.dur ? " · " + tc(m.dur, false) : ""}${m.listo ? "" : " · preparando"} ${usados.has(m.clave) ? `<span class="usado">en uso</span>` : ""}</div></div>
     </div>`).join("");
 }
 $("#filtro").addEventListener("input", pintarMedios);
@@ -954,22 +955,237 @@ $("#bDeshacer").onclick = deshacer;
 $("#bComentar").onclick = abrirComentario;
 $("#bMas").onclick = () => zoom(pps * 1.5);
 $("#bMenos").onclick = () => zoom(pps / 1.5);
-$("#bAjustar").onclick = () => { zoom(($("#scrollLinea").clientWidth - 30) / Math.max(total(), 1), 0); $("#scrollLinea").scrollLeft = 0; };
+$("#bAjustar").onclick = () => ajustar();
+$("#bRehacer").onclick = () => rehacer();
 $("#chkSubs").onchange = () => localStorage.subs = $("#chkSubs").checked ? "1" : "0";
 if (localStorage.subs === "0") $("#chkSubs").checked = false;
 $("#chkGraficos").onchange = () => localStorage.graficos = $("#chkGraficos").checked ? "1" : "0";
 if (localStorage.graficos === "0") $("#chkGraficos").checked = false;
 
+// ---------- barra de menús ----------
+// Cada opción del menú es un data-accion; las de escritorio (abrir carpetas, guardar con diálogo…) usan el
+// puente window.clauditor del programa y en el navegador se esconden o usan una descarga normal.
+const ESCRITORIO = !!window.clauditor;
+document.body.classList.toggle("escritorio", ESCRITORIO);
+let infoProyecto = {};
+const rehacer = () => api("/api/rehacer", {});
+const ajustar = () => { zoom(($("#scrollLinea").clientWidth - 30) / Math.max(total(), 1), 0); $("#scrollLinea").scrollLeft = 0; };
+
+function dialogo(titulo, cuerpo, botones = []) {
+  $("#dlgTitulo").textContent = titulo;
+  $("#dlgCuerpo").innerHTML = cuerpo;
+  $("#dlgPie").innerHTML = "";
+  for (const b of botones) {
+    const el = document.createElement("button");
+    el.innerHTML = b.texto;
+    if (b.acento) el.className = "acento";
+    el.onclick = () => b.accion();
+    $("#dlgPie").append(el);
+  }
+  ponerIconos($("#dialogo"));
+  $("#dialogo").classList.remove("oculto");
+}
+const cerrarDialogo = () => $("#dialogo").classList.add("oculto");
+$("#dlgCerrar").onclick = cerrarDialogo;
+$("#dialogo").addEventListener("mousedown", e => { if (e.target.id === "dialogo") cerrarDialogo(); });
+// En los diálogos con un campo de texto, Intro pulsa el botón principal
+function campoConIntro() {
+  $("#dlgNombre").focus();
+  $("#dlgNombre").onkeydown = e => { if (e.key === "Enter") $("#dlgPie .acento").click(); };
+}
+
+// Guarda un texto como fichero: con el diálogo del programa o, en el navegador, como descarga
+async function guardarComo(nombre, texto, tipo = "text/plain") {
+  if (ESCRITORIO) {
+    const ruta = await window.clauditor.guardarArchivo(nombre, texto);
+    if (ruta) avisar("Guardado en " + ruta);
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([texto], { type: tipo + ";charset=utf-8" }));
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function exportar(formato) {
+  const r = await api("/api/exportar?formato=" + formato);
+  await guardarComo(r.nombre, r.texto, r.tipo);
+}
+function guardarVersion() {
+  dialogo("Guardar versión", `<p class="tenue">El montaje ya se guarda solo con cada cambio. Una versión es una copia con fecha en la carpeta <b>versiones</b> del proyecto, para volver a ella cuando quieras.</p>
+    <input type="text" id="dlgNombre" placeholder="Nota opcional (p. ej. «antes de reordenar la parte 3»)">`, [
+    { texto: "Cancelar", accion: cerrarDialogo },
+    { texto: ico("save") + " Guardar versión", acento: true, accion: async () => {
+      const r = await api("/api/guardar", { nombre: $("#dlgNombre").value });
+      cerrarDialogo();
+      avisar("Versión guardada: " + r.fichero.replace(/\.json$/, ""));
+    } },
+  ]);
+  campoConIntro();
+}
+async function verVersiones() {
+  const lista = await api("/api/versiones");
+  const filas = lista.map(v => `<tr><td>${esc(v.fichero.replace(/\.json$/, "").replace(/_(\d\d)-(\d\d)-(\d\d)/, " $1:$2:$3"))}</td><td class="tenue">${v.clips ?? "?"} clips</td>
+    <td><button data-restaurar="${esc(v.fichero)}">${ico("history")} Restaurar</button></td></tr>`).join("");
+  dialogo("Versiones guardadas", lista.length ? `<p class="tenue">Restaurar sustituye el montaje actual; se puede deshacer con Ctrl+Z.</p><table>${filas}</table>`
+    : `<p class="tenue">Todavía no hay versiones. Usa <b>Archivo › Guardar versión</b> (Ctrl+S).</p>`, [{ texto: "Cerrar", accion: cerrarDialogo }]);
+  $("#dlgCuerpo").querySelectorAll("[data-restaurar]").forEach(b => b.onclick = async () => {
+    await api("/api/restaurar", { fichero: b.dataset.restaurar });
+    cerrarDialogo();
+    avisar("Restaurada la versión " + b.dataset.restaurar.replace(/\.json$/, ""));
+  });
+}
+async function importarProyecto() {
+  let texto = null;
+  if (ESCRITORIO) texto = await window.clauditor.abrirArchivoProyecto();
+  else texto = await new Promise(ok => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = ".json,application/json";
+    inp.onchange = () => inp.files[0] ? inp.files[0].text().then(ok) : ok(null);
+    inp.click();
+  });
+  if (!texto) return;
+  let p;
+  try { p = JSON.parse(texto); } catch { return avisar("Ese fichero no es un JSON válido"); }
+  dialogo("Importar proyecto", `<p>Se sustituirá el montaje actual por el del fichero (${(p.clips || []).length} clips, ${(p.pistas || []).length} pistas). Se puede deshacer con Ctrl+Z.</p>`, [
+    { texto: "Cancelar", accion: cerrarDialogo },
+    { texto: ico("upload") + " Importar", acento: true, accion: async () => { await api("/api/restaurar", { proyecto: p }); cerrarDialogo(); avisar("Proyecto importado"); } },
+  ]);
+}
+function verAtajos() {
+  const A = [["Espacio", "Reproducir / parar"], ["← / →", "Fotograma anterior / siguiente (Mayús: 1 s)"], ["Inicio · Fin", "Principio / final del montaje"],
+    ["S · Ctrl+B", "Dividir en el cabezal"], ["Supr", "Borrar (Mayús+Supr cierra el hueco)"], ["Intro · doble clic", "Editar el clip seleccionado"],
+    ["C", "Comentar en el cabezal"], ["M", "Marcador en el cabezal"], ["Ctrl+Z · Ctrl+Y", "Deshacer / rehacer"], ["Ctrl+A", "Seleccionar todo"],
+    ["Ctrl+S", "Guardar versión"], ["+ · − · Ctrl+rueda", "Zoom de la línea de tiempo"], ["Alt al arrastrar", "Sin imán"],
+    ["Mayús al arrastrar un borde", "Recorta y mueve todo lo que va detrás"], ["F5 · F11 · F12", "Recargar · pantalla completa · depuración"]];
+  if (ESCRITORIO) A.push(["Ctrl+N · Ctrl+O · Ctrl+Q", "Proyecto nuevo · abrir · salir"]);
+  dialogo("Atajos de teclado", `<table>${A.map(([k, d]) => `<tr><td>${d}</td><td>${k.split(" · ").map(x => `<kbd>${esc(x)}</kbd>`).join(" ")}</td></tr>`).join("")}</table>`, [{ texto: "Cerrar", accion: cerrarDialogo }]);
+}
+const abrirEnlace = url => ESCRITORIO ? window.clauditor.abrirEnlace(url) : window.open(url, "_blank", "noopener");
+function verAcerca() {
+  dialogo("Acerca de Clauditor", `<p><b>Clauditor</b> · editor de vídeo por capas, sin render, que Claude controla por MCP.</p>
+    <p class="tenue">Proyecto: ${esc(infoProyecto.nombre || "")}<br>Carpeta: ${esc(infoProyecto.carpeta || "")}<br>Licencia MIT · iconos de Lucide (ISC)</p>`,
+    [{ texto: ico("github") + " GitHub", accion: () => abrirEnlace("https://github.com/FlashBacKB9/Clauditor") }, { texto: "Cerrar", acento: true, accion: cerrarDialogo }]);
+}
+function editarSeleccion() {
+  if (sel.size !== 1) return avisar(sel.size ? "Selecciona un solo clip para editarlo" : "Selecciona un clip para editarlo");
+  abrirEditorClip([...sel][0]);
+}
+function marcadorAqui() {
+  dialogo("Marcador en " + tc(t), `<input type="text" id="dlgNombre" placeholder="Texto del marcador (p. ej. «5. Parte 2»)">`, [
+    { texto: "Cancelar", accion: cerrarDialogo },
+    { texto: ico("bookmark") + " Añadir", acento: true, accion: async () => {
+      const texto = $("#dlgNombre").value.trim();
+      if (!texto) return;
+      await ops([{ op: "anadir_marcador", t: Math.round(t * FPS) / FPS, texto }]);
+      cerrarDialogo();
+    } },
+  ]);
+  campoConIntro();
+}
+const alternar = id => { const c = $("#" + id); c.checked = !c.checked; c.onchange(); };
+
+const ACCIONES = {
+  "nuevo": () => window.clauditor?.nuevoProyecto(),
+  "abrir": () => window.clauditor?.abrirProyecto(),
+  "guardar": guardarVersion,
+  "versiones": verVersiones,
+  "importar": importarProyecto,
+  "exp-json": () => exportar("json"),
+  "exp-fcpxml": () => exportar("fcpxml"),
+  "exp-comentarios": () => exportar("comentarios"),
+  "exp-guion": () => exportar("guion"),
+  "carpeta": () => window.clauditor?.abrirCarpeta(infoProyecto.carpeta),
+  "salir": () => window.clauditor?.salir(),
+  "deshacer": () => deshacer(),
+  "rehacer": rehacer,
+  "editar-clip": editarSeleccion,
+  "dividir": () => dividir(),
+  "borrar": () => borrarSeleccion(false),
+  "borrar-hueco": () => borrarSeleccion(true),
+  "seleccionar-todo": () => seleccionar(P.clips.map(c => c.id)),
+  "seleccionar-nada": () => seleccionar([]),
+  "comentar": () => abrirComentario(),
+  "marcador": marcadorAqui,
+  "acercar": () => zoom(pps * 1.5),
+  "alejar": () => zoom(pps / 1.5),
+  "ajustar": ajustar,
+  "ir-inicio": () => irA(0, true),
+  "ir-fin": () => irA(total(), true),
+  "ver-guion": () => alternar("chkSubs"),
+  "ver-graficos": () => alternar("chkGraficos"),
+  "panel-clip": () => pestana("clip"),
+  "panel-comentarios": () => pestana("comentarios"),
+  "panel-actividad": () => pestana("actividad"),
+  "recargar": () => location.reload(),
+  "pantalla": () => ESCRITORIO ? window.clauditor.pantallaCompleta() : (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()),
+  "depurar": () => window.clauditor?.depuracion(),
+  "atajos": verAtajos,
+  "github": () => abrirEnlace("https://github.com/FlashBacKB9/Clauditor"),
+  "acerca": verAcerca,
+};
+function ejecutar(accion) {
+  const f = ACCIONES[accion];
+  if (!f) return;
+  Promise.resolve().then(f).catch(e => avisar("Error: " + e.message));
+}
+
+// Abrir y cerrar menús: clic en el título; con uno abierto, pasar el ratón por otro lo abre
+const menuAbierto = () => document.querySelector("#menu .menu.abierto");
+function cerrarMenus() { document.querySelectorAll("#menu .abierto").forEach(m => m.classList.remove("abierto")); }
+async function abrirMenu(m) {
+  cerrarMenus();
+  m.classList.add("abierto");
+  m.querySelectorAll("[data-check]").forEach(b => b.classList.toggle("marcado", $("#" + b.dataset.check).checked));
+  m.querySelector('[data-accion="editar-clip"]')?.toggleAttribute("disabled", sel.size !== 1);
+  for (const a of ["borrar", "borrar-hueco"]) m.querySelector(`[data-accion="${a}"]`)?.toggleAttribute("disabled", !sel.size);
+  if (ESCRITORIO && m.querySelector("#menuRecientes")) {
+    const lista = (await window.clauditor.recientes()).filter(d => d.toLowerCase() !== (infoProyecto.carpeta || "").toLowerCase());
+    $("#menuRecientes").innerHTML = lista.length ? lista.map(d => `<button data-reciente="${esc(d)}" title="${esc(d)}">${ico("folder")}<span>${esc(d.split(/[\\/]/).filter(Boolean).slice(-2).join(" / "))}</span><kbd></kbd></button>`).join("")
+      : `<div class="vacio">No hay otros proyectos recientes</div>`;
+  }
+}
+$("#menu").addEventListener("click", e => {
+  const titulo = e.target.closest(".titulo");
+  if (titulo) { const m = titulo.parentElement; return m.classList.contains("abierto") ? cerrarMenus() : abrirMenu(m); }
+  const rec = e.target.closest("[data-reciente]");
+  if (rec) { cerrarMenus(); return window.clauditor.abrirReciente(rec.dataset.reciente); }
+  const b = e.target.closest("[data-accion]");
+  if (b && !b.disabled) { cerrarMenus(); ejecutar(b.dataset.accion); }
+});
+$("#menu").addEventListener("mouseover", e => {
+  const m = e.target.closest(".menu");
+  if (m && menuAbierto() && !m.classList.contains("abierto")) abrirMenu(m);
+  const fila = e.target.closest(".desplegable > button, .desplegable > .sub, .desplegable > hr");
+  if (fila) {
+    fila.parentElement.querySelectorAll(":scope > .sub.abierto").forEach(s => { if (s !== fila) s.classList.remove("abierto"); });
+    if (fila.classList.contains("sub")) fila.classList.add("abierto");
+  }
+});
+document.addEventListener("mousedown", e => { if (!e.target.closest("#menu")) cerrarMenus(); });
+
 document.addEventListener("keydown", e => {
+  const k = e.key, ctrl = e.ctrlKey || e.metaKey;
+  if (!$("#dialogo").classList.contains("oculto")) { if (k === "Escape") cerrarDialogo(); return; }
+  if (k === "Escape" && menuAbierto()) return cerrarMenus();
+  // Atajos con Ctrl que valen también escribiendo en un campo
+  if (ctrl && (k === "s" || k === "S")) { e.preventDefault(); return guardarVersion(); }
+  if (ctrl && ESCRITORIO && (k === "n" || k === "N")) { e.preventDefault(); return ejecutar("nuevo"); }
+  if (ctrl && ESCRITORIO && (k === "o" || k === "O")) { e.preventDefault(); return ejecutar("abrir"); }
+  if (ctrl && ESCRITORIO && (k === "q" || k === "Q")) { e.preventDefault(); return ejecutar("salir"); }
   if (e.target.closest("input, textarea, select")) return;
-  const k = e.key;
   if (k === " ") { e.preventDefault(); play(); }
   else if (k === "ArrowLeft") { e.preventDefault(); irA(t - (e.shiftKey ? 1 : 1 / FPS)); }
   else if (k === "ArrowRight") { e.preventDefault(); irA(t + (e.shiftKey ? 1 : 1 / FPS)); }
   else if (k === "Home") irA(0, true);
   else if (k === "End") irA(total(), true);
   else if (k === "Delete" || k === "Backspace") borrarSeleccion(e.shiftKey);
-  else if ((k === "z" || k === "Z") && (e.ctrlKey || e.metaKey)) { e.preventDefault(); deshacer(); }
+  else if ((k === "z" || k === "Z") && ctrl && e.shiftKey) { e.preventDefault(); rehacer(); }
+  else if ((k === "z" || k === "Z") && ctrl) { e.preventDefault(); deshacer(); }
+  else if ((k === "y" || k === "Y") && ctrl) { e.preventDefault(); rehacer(); }
+  else if ((k === "a" || k === "A") && ctrl) { e.preventDefault(); ejecutar("seleccionar-todo"); }
+  else if (k === "Enter") { e.preventDefault(); editarSeleccion(); }
+  else if (k === "m" || k === "M") { e.preventDefault(); marcadorAqui(); }
   else if (k === "s" || k === "S" || (k === "b" && e.ctrlKey)) { e.preventDefault(); dividir(); }
   else if (k === "c" || k === "C") { e.preventDefault(); abrirComentario(); }
   else if (k === "+") zoom(pps * 1.5);
@@ -1032,6 +1248,7 @@ function conectar() {
   t = Math.min(est.cabezal || 0, total());
   sel = new Set((est.seleccion || []).filter(id => P.clips.some(c => c.id === id)));
   $("#titulo").textContent = P.nombre || "Clauditor";
+  fetch("/api/info").then(r => r.json()).then(i => { infoProyecto = i; $("#nombreProyecto").textContent = i.carpeta || ""; $("#nombreProyecto").title = "Carpeta del proyecto"; }).catch(() => {});
   alCambiarProyecto();
   cargarMedios().then(dibujarLinea, () => {});
   centrarEn(t);

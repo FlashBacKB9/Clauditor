@@ -231,14 +231,20 @@ function aplicar(ops, origen, motivo) {
     hechos.push(f(p, o));
   }
   recolocarComentarios(p);
-  const sello = new Date().toISOString().replace(/[:.]/g, "-");
-  fs.writeFileSync(path.join(HIST, `${sello}.json`), antes);
+  fs.writeFileSync(path.join(HIST, `${sello()}.json`), antes);
   podarHistorial();
+  vaciarRehacer();   // un cambio nuevo invalida lo que se podía rehacer
   p.rev = (p.rev || 0) + 1;
   escribir(p);
   const texto = motivo || hechos.join("; ");
   guardarEstado({ aviso: { origen, texto, rev: p.rev, cuando: Date.now() } });
   return { rev: p.rev, hechos };
+}
+
+const sello = () => new Date().toISOString().replace(/[:.]/g, "-");
+const REHACER = path.join(HIST, "rehacer");
+function vaciarRehacer() {
+  try { for (const f of fs.readdirSync(REHACER)) fs.unlinkSync(path.join(REHACER, f)); } catch {}
 }
 
 function podarHistorial() {
@@ -256,6 +262,10 @@ function deshacer(n = 1, origen = "tú") {
   fs.mkdirSync(path.join(HIST, "deshecho"), { recursive: true });
   fs.writeFileSync(path.join(HIST, "deshecho", new Date().toISOString().replace(/[:.]/g, "-") + ".json"), JSON.stringify(actual));
   const p = JSON.parse(fs.readFileSync(path.join(HIST, elegida), "utf8"));
+  // Lo deshecho se puede rehacer: cada paso quitado va a historial/rehacer (el más reciente, el último)
+  fs.mkdirSync(REHACER, { recursive: true });
+  const pasos = [...copias.slice(copias.length - n + 1).map(f => fs.readFileSync(path.join(HIST, f), "utf8")), JSON.stringify(actual)];
+  pasos.reverse().forEach((txt, i) => fs.writeFileSync(path.join(REHACER, `${sello()}_${String(i).padStart(3, "0")}.json`), txt));
   for (const f of copias.slice(copias.length - n)) fs.unlinkSync(path.join(HIST, f));
   p.rev = (actual.rev || 0) + 1;
   escribir(p);
@@ -263,4 +273,33 @@ function deshacer(n = 1, origen = "tú") {
   return p.rev;
 }
 
-module.exports = { FICH, ESTADO, cargar, cargarEstado, guardarEstado, aplicar, deshacer, duracionTotal, fin, r3, OPS };
+// Rehace el último paso deshecho (si desde entonces no ha habido cambios nuevos)
+function rehacer(origen = "tú") {
+  let fs_ = [];
+  try { fs_ = fs.readdirSync(REHACER).filter(f => f.endsWith(".json")).sort(); } catch {}
+  if (!fs_.length) throw new Error("No hay nada que rehacer");
+  const actual = cargar();
+  // el último por nombre es el estado más cercano al actual (deshacer los escribe así)
+  const elegido = fs_[fs_.length - 1];
+  const p = JSON.parse(fs.readFileSync(path.join(REHACER, elegido), "utf8"));
+  fs.unlinkSync(path.join(REHACER, elegido));
+  fs.writeFileSync(path.join(HIST, `${sello()}.json`), JSON.stringify(actual));
+  p.rev = (actual.rev || 0) + 1;
+  escribir(p);
+  guardarEstado({ aviso: { origen, texto: "rehecho", rev: p.rev, cuando: Date.now() } });
+  return p.rev;
+}
+
+// Sustituye el montaje entero (restaurar una versión guardada) como un paso deshacible más
+function restaurar(nuevo, origen, motivo) {
+  const actual = cargar();
+  if (!nuevo || !Array.isArray(nuevo.clips) || !Array.isArray(nuevo.pistas)) throw new Error("Ese fichero no es un proyecto de Clauditor");
+  fs.writeFileSync(path.join(HIST, `${sello()}.json`), JSON.stringify(actual));
+  vaciarRehacer();
+  const p = { ...nuevo, rev: (actual.rev || 0) + 1 };
+  escribir(p);
+  guardarEstado({ aviso: { origen, texto: motivo, rev: p.rev, cuando: Date.now() } });
+  return p.rev;
+}
+
+module.exports = { FICH, ESTADO, cargar, cargarEstado, guardarEstado, aplicar, deshacer, rehacer, restaurar, duracionTotal, fin, r3, OPS };

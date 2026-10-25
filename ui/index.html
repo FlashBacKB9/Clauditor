@@ -8,27 +8,92 @@
 <link rel="stylesheet" href="/ui/estilo.css">
 </head>
 <body>
+<nav id="menu">
+  <div class="menu"><button class="titulo">Archivo</button><div class="desplegable">
+      <button data-accion="nuevo" data-solo="escritorio"><i data-ico="file-plus"></i><span>Proyecto nuevo…</span><kbd>Ctrl+N</kbd></button>
+      <button data-accion="abrir" data-solo="escritorio"><i data-ico="folder-open"></i><span>Abrir proyecto…</span><kbd>Ctrl+O</kbd></button>
+      <div class="sub" data-solo="escritorio"><button data-submenu="recientes"><i data-ico="clock"></i><span>Abrir reciente</span><i data-ico="chevron-right" class="flecha"></i></button><div class="desplegable" id="menuRecientes"></div></div>
+      <hr>
+      <button data-accion="guardar"><i data-ico="save"></i><span>Guardar versión</span><kbd>Ctrl+S</kbd></button>
+      <button data-accion="versiones"><i data-ico="history"></i><span>Versiones guardadas…</span><kbd></kbd></button>
+      <hr>
+      <button data-accion="importar"><i data-ico="upload"></i><span>Importar proyecto (.json)…</span><kbd></kbd></button>
+      <div class="sub"><button data-submenu="exportar"><i data-ico="download"></i><span>Exportar</span><i data-ico="chevron-right" class="flecha"></i></button><div class="desplegable">
+        <button data-accion="exp-json"><i data-ico="file-text"></i><span>Proyecto completo (.json)</span><kbd></kbd></button>
+        <button data-accion="exp-fcpxml"><i data-ico="film"></i><span>Para DaVinci Resolve / Final Cut (.fcpxml)</span><kbd></kbd></button>
+        <button data-accion="exp-comentarios"><i data-ico="message"></i><span>Comentarios (.md)</span><kbd></kbd></button>
+        <button data-accion="exp-guion"><i data-ico="list"></i><span>Guion y notas (.txt)</span><kbd></kbd></button>
+        <hr>
+        <button disabled title="Todavía no: el render final se hace en otro editor (exporta a FCPXML)"><i data-ico="film"></i><span>Vídeo final… (próximamente)</span><kbd></kbd></button>
+      </div></div>
+      <hr>
+      <button data-accion="carpeta" data-solo="escritorio"><i data-ico="folder"></i><span>Abrir carpeta del proyecto</span><kbd></kbd></button>
+      <button data-accion="salir" data-solo="escritorio"><i data-ico="log-out"></i><span>Salir</span><kbd>Ctrl+Q</kbd></button>
+  </div></div>
+  <div class="menu"><button class="titulo">Editar</button><div class="desplegable">
+      <button data-accion="deshacer"><i data-ico="undo"></i><span>Deshacer</span><kbd>Ctrl+Z</kbd></button>
+      <button data-accion="rehacer"><i data-ico="redo"></i><span>Rehacer</span><kbd>Ctrl+Y</kbd></button>
+      <hr>
+      <button data-accion="editar-clip"><i data-ico="pencil"></i><span>Editar clip…</span><kbd>Intro</kbd></button>
+      <button data-accion="dividir"><i data-ico="scissors"></i><span>Dividir en el cabezal</span><kbd>S</kbd></button>
+      <button data-accion="borrar"><i data-ico="trash"></i><span>Borrar</span><kbd>Supr</kbd></button>
+      <button data-accion="borrar-hueco"><i data-ico="trash"></i><span>Borrar y cerrar el hueco</span><kbd>Mayús+Supr</kbd></button>
+      <hr>
+      <button data-accion="seleccionar-todo"><i data-ico="select-all"></i><span>Seleccionar todo</span><kbd>Ctrl+A</kbd></button>
+      <button data-accion="seleccionar-nada"><i data-ico="x"></i><span>Quitar la selección</span><kbd>Esc</kbd></button>
+      <hr>
+      <button data-accion="comentar"><i data-ico="message"></i><span>Comentar en el cabezal</span><kbd>C</kbd></button>
+      <button data-accion="marcador"><i data-ico="bookmark"></i><span>Marcador en el cabezal</span><kbd>M</kbd></button>
+  </div></div>
+  <div class="menu"><button class="titulo">Ver</button><div class="desplegable">
+      <button data-accion="acercar"><i data-ico="zoom-in"></i><span>Acercar</span><kbd>+</kbd></button>
+      <button data-accion="alejar"><i data-ico="zoom-out"></i><span>Alejar</span><kbd>−</kbd></button>
+      <button data-accion="ajustar"><i data-ico="fit"></i><span>Ver todo el montaje</span><kbd></kbd></button>
+      <hr>
+      <button data-accion="ir-inicio"><i data-ico="to-start"></i><span>Ir al principio</span><kbd>Inicio</kbd></button>
+      <button data-accion="ir-fin"><i data-ico="to-end"></i><span>Ir al final</span><kbd>Fin</kbd></button>
+      <hr>
+      <button data-accion="ver-guion" data-check="chkSubs"><i data-ico="captions"></i><span>Guion en el visor</span><kbd></kbd></button>
+      <button data-accion="ver-graficos" data-check="chkGraficos"><i data-ico="image"></i><span>Gráficos por hacer</span><kbd></kbd></button>
+      <hr>
+      <button data-accion="panel-clip"><i data-ico="panel"></i><span>Panel del clip</span><kbd></kbd></button>
+      <button data-accion="panel-comentarios"><i data-ico="message"></i><span>Panel de comentarios</span><kbd></kbd></button>
+      <button data-accion="panel-actividad"><i data-ico="history"></i><span>Panel de actividad</span><kbd></kbd></button>
+      <hr>
+      <button data-accion="recargar"><i data-ico="refresh"></i><span>Recargar</span><kbd>F5</kbd></button>
+      <button data-accion="pantalla"><i data-ico="maximize"></i><span>Pantalla completa</span><kbd>F11</kbd></button>
+      <button data-accion="depurar" data-solo="escritorio"><i data-ico="terminal"></i><span>Herramientas de depuración</span><kbd>F12</kbd></button>
+  </div></div>
+  <div class="menu"><button class="titulo">Ayuda</button><div class="desplegable">
+      <button data-accion="atajos"><i data-ico="keyboard"></i><span>Atajos de teclado</span><kbd></kbd></button>
+      <button data-accion="github"><i data-ico="github"></i><span>Clauditor en GitHub</span><kbd></kbd></button>
+      <hr>
+      <button data-accion="acerca"><i data-ico="info"></i><span>Acerca de Clauditor</span><kbd></kbd></button>
+  </div></div>
+  <span id="nombreProyecto" class="tenue"></span>
+</nav>
 <header id="barra">
   <strong id="titulo">Clauditor</strong>
   <div class="controles">
-    <button id="bInicio" title="Al principio (Inicio)">⏮</button>
-    <button id="bAtras" title="Un fotograma atrás (←)">◀︎|</button>
-    <button id="bPlay" class="grande" title="Reproducir / parar (espacio)">▶</button>
-    <button id="bAdelante" title="Un fotograma adelante (→)">|▶︎</button>
+    <button id="bInicio" class="icono" title="Al principio (Inicio)"><i data-ico="skip-back"></i></button>
+    <button id="bAtras" class="icono" title="Un fotograma atrás (←)"><i data-ico="step-back"></i></button>
+    <button id="bPlay" class="icono grande" title="Reproducir / parar (espacio)"><i data-ico="play"></i></button>
+    <button id="bAdelante" class="icono" title="Un fotograma adelante (→)"><i data-ico="step-forward"></i></button>
     <span id="tc">00:00:00</span><span id="tcTotal">/ 00:00:00</span>
   </div>
   <div class="controles">
-    <button id="bDividir" title="Dividir en el cabezal (S)">✂ Dividir</button>
-    <button id="bBorrar" title="Borrar selección (Supr). Mayús+Supr cierra el hueco">🗑 Borrar</button>
-    <button id="bDeshacer" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
-    <button id="bComentar" class="acento" title="Comentar en el cabezal (C)">💬 Comentar</button>
+    <button id="bDividir" title="Dividir en el cabezal (S)"><i data-ico="scissors"></i> Dividir</button>
+    <button id="bBorrar" title="Borrar selección (Supr). Mayús+Supr cierra el hueco"><i data-ico="trash"></i> Borrar</button>
+    <button id="bDeshacer" title="Deshacer (Ctrl+Z)"><i data-ico="undo"></i> Deshacer</button>
+    <button id="bRehacer" class="icono" title="Rehacer (Ctrl+Y)"><i data-ico="redo"></i></button>
+    <button id="bComentar" class="acento" title="Comentar en el cabezal (C)"><i data-ico="message"></i> Comentar</button>
   </div>
   <div class="controles">
     <label class="chk"><input type="checkbox" id="chkSubs" checked> Guion en el visor</label>
     <label class="chk" title="Etiqueta en la esquina donde irá cada gráfico que falta por hacer"><input type="checkbox" id="chkGraficos" checked> Gráficos por hacer</label>
-    <button id="bMenos" title="Alejar (−)">−</button><button id="bAjustar" title="Ver todo">Ajustar</button><button id="bMas" title="Acercar (+)">+</button>
+    <button id="bMenos" class="icono" title="Alejar (−)"><i data-ico="minus"></i></button><button id="bAjustar" title="Ver todo"><i data-ico="fit"></i> Ajustar</button><button id="bMas" class="icono" title="Acercar (+)"><i data-ico="plus"></i></button>
   </div>
-  <span id="conexion" title="Conexión con el servidor">●</span>
+  <span id="conexion" title="Conexión con el servidor"></span>
 </header>
 
 <main id="arriba">
@@ -82,13 +147,13 @@
 <!-- Editor de un clip (doble clic en la línea de tiempo) -->
 <div id="modalClip" class="modal oculto">
   <div class="caja">
-    <div class="mcCab"><strong id="mcTitulo"></strong><span id="mcSub" class="tenue"></span><button id="mcCerrar" title="Cerrar sin cambiar (Esc)">×</button></div>
+    <div class="mcCab"><strong id="mcTitulo"></strong><span id="mcSub" class="tenue"></span><button id="mcCerrar" class="icono" title="Cerrar sin cambiar (Esc)"><i data-ico="x"></i></button></div>
     <div id="mcVisor"><video id="mcVideo" preload="auto" playsinline></video><audio id="mcAudio" preload="auto"></audio><img id="mcFoto" alt=""><div id="mcTexto"></div></div>
     <div class="mcTransporte">
-      <button id="mcIrEntrada" title="Ir a la entrada">⇤</button>
-      <button id="mcPlay" class="grande" title="Reproducir / parar (Espacio)">▶</button>
-      <button id="mcVerCorte" title="Reproducir el corte de principio a fin">▶ corte</button>
-      <button id="mcIrSalida" title="Ir a la salida">⇥</button>
+      <button id="mcIrEntrada" class="icono" title="Ir a la entrada (Inicio)"><i data-ico="to-start"></i></button>
+      <button id="mcPlay" class="icono grande" title="Reproducir / parar (Espacio)"><i data-ico="play"></i></button>
+      <button id="mcVerCorte" title="Reproducir el corte de principio a fin"><i data-ico="play"></i> Corte</button>
+      <button id="mcIrSalida" class="icono" title="Ir a la salida (Fin)"><i data-ico="to-end"></i></button>
       <span id="mcTc"></span>
       <span class="tenue mcAyuda">I / O marcan entrada y salida en el cabezal · ←/→ fotograma (Mayús: 1 s) · Ctrl+rueda zoom · arrastra el corte para deslizarlo</span>
     </div>
@@ -126,6 +191,14 @@
   </div>
 </div>
 
+<!-- Diálogo genérico (versiones, atajos, acerca de, pedir un nombre) -->
+<div id="dialogo" class="modal oculto"><div class="caja estrecha">
+  <div class="mcCab"><strong id="dlgTitulo"></strong><button id="dlgCerrar" class="icono" title="Cerrar (Esc)"><i data-ico="x"></i></button></div>
+  <div id="dlgCuerpo"></div>
+  <div class="mcPie" id="dlgPie"></div>
+</div></div>
+
+<script src="/ui/iconos.js"></script>
 <script src="/ui/app.js"></script>
 </body>
 </html>

@@ -7,10 +7,12 @@ const path = require("path");
 const url = require("url");
 const { DIR, cfg, RUTAS } = require("./config");
 const P = require("./proyecto");
+const X = require("./exportar");
 const M = require("./medios");
 
 const PUERTO = cfg.puerto;
 const UI = path.join(__dirname, "..", "ui");
+const VERSIONES = path.join(DIR, "versiones");
 const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".mp4": "video/mp4", ".webm": "video/webm", ".jpg": "image/jpeg", ".png": "image/png", ".svg": "image/svg+xml",
   ".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".flac": "audio/flac", ".ogg": "audio/ogg", ".json": "application/json" };
@@ -105,6 +107,33 @@ const servidor = http.createServer(async (req, res) => {
       return json(res, P.aplicar(b.ops, b.origen === "claude" ? "claude" : "tú", b.motivo));
     }
     if (ruta === "/api/deshacer" && req.method === "POST") return json(res, { rev: P.deshacer(1, "tú") });
+    if (ruta === "/api/rehacer" && req.method === "POST") return json(res, { rev: P.rehacer("tú") });
+    // Versiones guardadas a mano (Archivo › Guardar versión) en <proyecto>/versiones
+    if (ruta === "/api/guardar" && req.method === "POST") {
+      const b = await leerCuerpo(req).catch(() => ({}));
+      fs.mkdirSync(VERSIONES, { recursive: true });
+      const d = new Date(), dd = n => String(n).padStart(2, "0");
+      const sello = `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}_${dd(d.getHours())}-${dd(d.getMinutes())}-${dd(d.getSeconds())}`;
+      const nota = String(b.nombre || "").replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 60);
+      const fich = sello + (nota ? " " + nota : "") + ".json";
+      fs.copyFileSync(P.FICH, path.join(VERSIONES, fich));
+      return json(res, { fichero: fich, carpeta: VERSIONES });
+    }
+    if (ruta === "/api/versiones") {
+      let lista = [];
+      try { lista = fs.readdirSync(VERSIONES).filter(f => f.endsWith(".json")).sort().reverse(); } catch {}
+      return json(res, lista.map(f => { const st = fs.statSync(path.join(VERSIONES, f)); let n = null; try { n = JSON.parse(fs.readFileSync(path.join(VERSIONES, f), "utf8")).clips.length; } catch {} return { fichero: f, bytes: st.size, clips: n }; }));
+    }
+    if (ruta === "/api/restaurar" && req.method === "POST") {
+      const b = await leerCuerpo(req);
+      let nuevo = b.proyecto;
+      if (b.fichero) {
+        const f = path.join(VERSIONES, path.basename(String(b.fichero)));
+        nuevo = JSON.parse(fs.readFileSync(f, "utf8"));
+      }
+      return json(res, { rev: P.restaurar(nuevo, "tú", b.fichero ? `restaurada la versión ${b.fichero.replace(/\.json$/, "")}` : "importado un proyecto") });
+    }
+    if (ruta === "/api/exportar") return json(res, await X.exportar(u.query.formato || "json"));
     if (ruta === "/api/medios") return json(res, { medios: await listaMedios(), proxies: M.estadoProxies() });
     if (ruta === "/api/transcripcion") return json(res, M.transcripcion(u.query.medio || "", +u.query.desde || 0, u.query.hasta ? +u.query.hasta : Infinity));
     if (ruta.startsWith("/medio/")) {

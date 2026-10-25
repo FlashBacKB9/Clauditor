@@ -7,3 +7,4 @@ ejemplo/estado.json
 ejemplo/audio/
 ejemplo/medios/*
 !ejemplo/medios/.gitkeep
+ejemplo/versiones/

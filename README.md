@@ -19,7 +19,18 @@ No usa la API de Claude: es un servidor MCP local que Claude Code (o cualquier c
 - Editor de cada clip (doble clic): alarga o acorta el corte por delante y por detrás, o desliza el trozo
   que se ve, sobre el vídeo original con miniaturas y transcripción; lo que va detrás se mueve para que encaje.
 
-**Todavía no exporta el vídeo final.** Sirve para decidir el montaje; el render se hace aparte.
+**Todavía no exporta el vídeo final.** Sirve para decidir el montaje; el render se hace aparte
+(Archivo › Exportar › Para DaVinci Resolve / Final Cut genera un FCPXML con los originales).
+
+## Menús
+
+- **Archivo**: proyecto nuevo, abrir y recientes (programa de escritorio), guardar versión (Ctrl+S: copia con
+  fecha en `versiones/`; el montaje ya se guarda solo con cada cambio), versiones guardadas para restaurar,
+  importar un proyecto `.json` y exportar: proyecto completo (`.json`), FCPXML para DaVinci Resolve / Final Cut,
+  comentarios (`.md`) y guion y notas (`.txt`).
+- **Editar**: deshacer y rehacer, editar clip, dividir, borrar (con o sin cerrar hueco), seleccionar, comentar y marcadores.
+- **Ver**: zoom, ir al principio o al final, guion en el visor, gráficos por hacer, paneles, pantalla completa.
+- **Ayuda**: atajos de teclado y acerca de.
 
 ## Requisitos
 
@@ -49,6 +60,7 @@ mi-video/
   estado.json        selección y cabezal (se crea solo)
   historial/         copias para deshacer
   audio/             audios generados (voces, música, sonido limpio…)
+  versiones/         versiones guardadas a mano (Archivo › Guardar versión)
   .clauditor/        proxies y caché (se regeneran)
 ```
 
@@ -110,10 +122,15 @@ por su cuenta, así que también puedes trabajar desde el navegador.
 | Supr / Retroceso | Borrar (con Mayús cierra el hueco) |
 | C | Comentar en el cabezal |
 | Doble clic en un clip | Editor del clip: entrada y salida sobre el medio original, con miniaturas y transcripción |
-| Ctrl+Z | Deshacer |
+| Ctrl+Z / Ctrl+Y | Deshacer / rehacer |
+| Ctrl+S | Guardar versión |
+| Intro | Editar el clip seleccionado |
+| M | Marcador en el cabezal |
+| Ctrl+A | Seleccionar todo |
 | + / − o Ctrl+rueda | Zoom de la línea de tiempo |
 | Alt al arrastrar | Sin imán |
-| F5 / F12 | Recargar / herramientas de depuración (programa de escritorio) |
+| F5 / F11 / F12 | Recargar / pantalla completa / depuración |
+| Ctrl+N / Ctrl+O / Ctrl+Q | Proyecto nuevo / abrir / salir (programa de escritorio) |
 
 ## Herramientas MCP
 
