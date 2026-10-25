@@ -79,6 +79,53 @@
   </div>
 </section>
 
+<!-- Editor de un clip (doble clic en la línea de tiempo) -->
+<div id="modalClip" class="modal oculto">
+  <div class="caja">
+    <div class="mcCab"><strong id="mcTitulo"></strong><span id="mcSub" class="tenue"></span><button id="mcCerrar" title="Cerrar sin cambiar (Esc)">×</button></div>
+    <div id="mcVisor"><video id="mcVideo" preload="auto" playsinline></video><audio id="mcAudio" preload="auto"></audio><img id="mcFoto" alt=""><div id="mcTexto"></div></div>
+    <div class="mcTransporte">
+      <button id="mcIrEntrada" title="Ir a la entrada">⇤</button>
+      <button id="mcPlay" class="grande" title="Reproducir / parar (Espacio)">▶</button>
+      <button id="mcVerCorte" title="Reproducir el corte de principio a fin">▶ corte</button>
+      <button id="mcIrSalida" title="Ir a la salida">⇥</button>
+      <span id="mcTc"></span>
+      <span class="tenue mcAyuda">I / O marcan entrada y salida en el cabezal · ←/→ fotograma (Mayús: 1 s) · Ctrl+rueda zoom · arrastra el corte para deslizarlo</span>
+    </div>
+    <div id="mcTira">
+      <div id="mcMinis"></div>
+      <div id="mcFrases"></div>
+      <div id="mcRango"><div class="asa i" title="Entrada"></div><div class="asa f" title="Salida"></div></div>
+      <div id="mcCabezal"></div>
+      <div id="mcEscala"></div>
+    </div>
+    <div class="mcCampos">
+      <div class="mcLado" id="mcLadoEntrada">
+        <span class="tenue">Entrada</span>
+        <button data-mc="entrada" data-d="-1">−1 s</button><button data-mc="entrada" data-d="-f">−1 f</button>
+        <input id="mcEntrada" size="9">
+        <button data-mc="entrada" data-d="+f">+1 f</button><button data-mc="entrada" data-d="+1">+1 s</button>
+        <button id="mcMarcarEntrada" title="Entrada en el cabezal (I)">Marcar aquí</button>
+      </div>
+      <div class="mcLado">
+        <span class="tenue">Salida</span>
+        <button data-mc="salida" data-d="-1">−1 s</button><button data-mc="salida" data-d="-f">−1 f</button>
+        <input id="mcSalida" size="9">
+        <button data-mc="salida" data-d="+f">+1 f</button><button data-mc="salida" data-d="+1">+1 s</button>
+        <button id="mcMarcarSalida" title="Salida en el cabezal (O)">Marcar aquí</button>
+      </div>
+    </div>
+    <div class="mcPie">
+      <span id="mcDuracion"></span>
+      <label class="chk"><input type="checkbox" id="mcCadena" checked> Mover lo que va detrás para que encaje</label>
+      <span id="mcEfecto" class="tenue"></span>
+      <span class="hueco"></span>
+      <button id="mcCancelar">Cancelar</button>
+      <button id="mcAplicar" class="acento" title="Aplicar (Intro)">Aplicar</button>
+    </div>
+  </div>
+</div>
+
 <script src="/ui/app.js"></script>
 </body>
 </html>

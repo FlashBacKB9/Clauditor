@@ -417,6 +417,9 @@ $("#pistas").addEventListener("mousedown", e => {
   }
   const id = div.dataset.id, c = clipPorId(id);
   const asa = e.target.classList.contains("asa") ? (e.target.classList.contains("i") ? "inicio" : "fin") : null;
+  // Doble clic: editor del clip. Va aquí y no en «dblclick» porque el primer clic repinta la línea de tiempo
+  // y el navegador ya no ve los dos clics sobre el mismo elemento
+  if (e.detail === 2 && !asa && !e.shiftKey && !e.ctrlKey) { e.preventDefault(); seleccionar([id]); return abrirEditorClip(id); }
   // Mayús/Ctrl sobre el clip suma o quita de la selección; Mayús sobre un borde es el recorte en cadena
   const multiple = (e.shiftKey || e.ctrlKey) && !asa;
   if (multiple) { const s = new Set(sel); s.has(id) ? s.delete(id) : s.add(id); seleccionar([...s]); }
@@ -498,10 +501,6 @@ $("#pistas").addEventListener("mousedown", e => {
   window.addEventListener("mousemove", mover);
   window.addEventListener("mouseup", soltar);
 });
-$("#pistas").addEventListener("dblclick", e => {
-  const div = e.target.closest(".clip");
-  if (div) irA(clipPorId(div.dataset.id).inicio);
-});
 function arrastrarCabezal() {
   const mover = ev => irA(tiempoDeEvento(ev));
   const soltar = () => { window.removeEventListener("mousemove", mover); window.removeEventListener("mouseup", soltar); };
@@ -548,6 +547,225 @@ function anadirMedio(medio, pid, inicio) {
   const dur = medios[medio]?.dur;
   ops([{ op: "anadir_clip", pista: pid, medio, inicio, entrada: 0, duracion: tipo === "foto" ? 4 : Math.min(dur || 6, tipo === "audio" ? dur || 30 : 6), ...(tipo === "foto" ? { zoom: 1.08 } : {}) }]);
 }
+
+// ---------- editor de un clip (modal) ----------
+// Doble clic en un clip: se ve su medio original con el corte marcado y se cambian entrada y salida
+// (alargar o acortar por delante y por detrás, o deslizar el corte). El clip conserva su sitio en la línea
+// de tiempo; con «Mover lo que va detrás» todo lo que empieza después se corre lo que cambie su duración.
+const EC = { c: null, ent: 0, sal: 0, D: 0, v0: 0, v1: 1, el: null, hastaSalida: false, conMedio: false };
+const redF = s => Math.round(s * FPS) / FPS;
+const leerTc = s => {   // admite «12.5», «1:02.5» o «1:02:15» (min:seg:fotogramas)
+  const p = String(s).trim().replace(",", ".").split(":").map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length === 1) return p[0];
+  if (p.length === 2) return p[0] * 60 + p[1];
+  return p[0] * 60 + p[1] + p[2] / FPS;
+};
+function abrirEditorClip(id) {
+  const c = clipPorId(id);
+  if (!c) return;
+  if (reproduciendo) parar();
+  const tipo = tipoClip(c);
+  EC.c = { ...c };
+  EC.conMedio = !!c.medio && tipo !== "foto" && c.entrada !== undefined;
+  EC.ent = EC.conMedio ? c.entrada : 0;
+  EC.sal = EC.ent + c.duracion;
+  EC.D = EC.conMedio ? (medios[c.medio]?.dur || Math.max(EC.sal + 30, 60)) : Math.max(EC.sal * 3, 30);
+  $("#mcTitulo").textContent = c.medio ? nombreCorto(c.medio) : (c.texto || "").split("\n")[0].slice(0, 60) || "Clip";
+  $("#mcSub").textContent = `${c.id} · ${pista(c.pista)?.nombre || c.pista} · empieza en ${tc(c.inicio)}`;
+  const v = $("#mcVideo"), a = $("#mcAudio");
+  [v, a].forEach(x => { x.pause(); x.removeAttribute("src"); });
+  $("#mcFoto").classList.add("oculto"); v.classList.add("oculto"); $("#mcTexto").classList.add("oculto");
+  EC.el = null;
+  if (tipo === "video" || tipo === "animacion") { EC.el = v; v.classList.remove("oculto"); }
+  else if (tipo === "audio") { EC.el = a; $("#mcTexto").classList.remove("oculto"); $("#mcTexto").textContent = "Audio · " + c.medio; }
+  else if (tipo === "foto") { $("#mcFoto").src = urlMedio(c.medio); $("#mcFoto").classList.remove("oculto"); }
+  else { $("#mcTexto").classList.remove("oculto"); $("#mcTexto").textContent = c.texto || ""; }
+  if (EC.el) {
+    EC.el.src = urlMedio(c.medio) + "#t=" + EC.ent.toFixed(3);
+    EC.el.volume = Math.min(1, c.volumen ?? 1);
+    EC.el.onloadedmetadata = () => { if (isFinite(EC.el.duration) && EC.el.duration > 0 && !medios[c.medio]?.dur) { EC.D = EC.el.duration; encuadrar(); } };
+  }
+  $("#mcLadoEntrada").classList.toggle("oculto", !EC.conMedio);
+  $("#mcRango .asa.i").classList.toggle("oculto", !EC.conMedio);   // sin medio solo se cambia el largo
+  $("#mcVerCorte").classList.toggle("oculto", !EC.el);
+  $("#mcPlay").classList.toggle("oculto", !EC.el);
+  $("#mcCadena").checked = localStorage.mcCadena !== "0";
+  $("#modalClip").classList.remove("oculto");
+  encuadrar();
+  irEC(EC.ent);
+}
+function cerrarEditorClip() {
+  if (!EC.c) return;
+  [$("#mcVideo"), $("#mcAudio")].forEach(x => { x.pause(); x.removeAttribute("src"); x.load(); });
+  $("#modalClip").classList.add("oculto");
+  EC.c = null;
+}
+const tEC = () => EC.el ? EC.el.currentTime : EC._t || 0;
+function irEC(s) {
+  s = Math.max(0, Math.min(EC.D, s));
+  if (EC.el) EC.el.currentTime = s; else EC._t = s;
+  pintarEC();
+}
+// Ventana visible de la tira: el corte con margen a los lados (se recalcula al soltar, no mientras se arrastra)
+function encuadrar(factor = 1) {
+  const len = EC.sal - EC.ent, pad = Math.max(4, len * 0.6) * factor;
+  EC.v0 = Math.max(0, EC.ent - pad);
+  EC.v1 = Math.min(EC.D, EC.sal + pad);
+  if (EC.v1 - EC.v0 < 2) EC.v1 = Math.min(EC.D, EC.v0 + 2);
+  pintarTira();
+}
+const xEC = s => (s - EC.v0) / (EC.v1 - EC.v0) * 100 + "%";
+const sDeX = clientX => { const r = $("#mcTira").getBoundingClientRect(); return EC.v0 + (clientX - r.left) / r.width * (EC.v1 - EC.v0); };
+function pintarTira() {
+  const c = EC.c, tipo = tipoClip(c), n = 10, paso = (EC.v1 - EC.v0) / n;
+  $("#mcMinis").innerHTML = EC.conMedio && tipo !== "audio"
+    ? Array.from({ length: n }, (_, i) => `<div style="background-image:url('/miniatura/${enc(c.medio)}?t=${(EC.v0 + paso * (i + 0.5)).toFixed(1)}&w=160')"></div>`).join("")
+    : "";
+  // escala con marcas «redondas» según el zoom
+  const span = EC.v1 - EC.v0, marca = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300].find(m => span / m <= 12) || 600;
+  let h = "";
+  for (let s = Math.ceil(EC.v0 / marca) * marca; s <= EC.v1; s += marca) h += `<span style="left:${xEC(s)}">${tc(s, marca < 1)}</span>`;
+  $("#mcEscala").innerHTML = h;
+  $("#mcFrases").innerHTML = "";
+  if (EC.conMedio && tipo === "video") {
+    const pedido = `${c.medio}|${EC.v0}|${EC.v1}`;
+    EC._pedido = pedido;
+    fetch(`/api/transcripcion?medio=${enc(c.medio)}&desde=${EC.v0}&hasta=${EC.v1}`).then(r => r.json()).then(fr => {
+      if (EC._pedido !== pedido || !Array.isArray(fr)) return;
+      $("#mcFrases").innerHTML = fr.map(f => `<div style="left:${xEC(Math.max(f.inicio, EC.v0))};width:calc(${xEC(Math.min(f.fin, EC.v1))} - ${xEC(Math.max(f.inicio, EC.v0))})" title="${esc(tc(f.inicio) + "  " + f.texto)}">${esc(f.texto)}</div>`).join("");
+    }).catch(() => {});
+  }
+  pintarEC();
+}
+function pintarEC() {
+  if (!EC.c) return;
+  const r = $("#mcRango");
+  r.style.left = xEC(EC.ent);
+  r.style.width = `calc(${xEC(EC.sal)} - ${xEC(EC.ent)})`;
+  $("#mcCabezal").style.left = xEC(tEC());
+  $("#mcTc").textContent = EC.conMedio || EC.el ? tc(tEC()) : "";
+  if (document.activeElement !== $("#mcEntrada")) $("#mcEntrada").value = tc(EC.ent);
+  if (document.activeElement !== $("#mcSalida")) $("#mcSalida").value = tc(EC.sal);
+  const dur = EC.sal - EC.ent, cambio = dur - EC.c.duracion;
+  const signo = cambio > 1e-4 ? "mas" : cambio < -1e-4 ? "menos" : "";
+  $("#mcDuracion").innerHTML = `Duración ${tc(EC.c.duracion)} → ${tc(dur)}` + (signo ? ` <span class="${signo}">(${cambio > 0 ? "+" : "−"}${Math.abs(cambio).toFixed(2)} s)</span>` : "");
+  const detras = P.clips.filter(x => x.id !== EC.c.id && x.inicio >= finC(EC.c) - 0.002).length;
+  $("#mcEfecto").textContent = !signo ? (Math.abs(EC.ent - (EC.c.entrada || 0)) > 1e-4 ? "Mismo largo: solo cambia qué trozo se ve" : "Sin cambios")
+    : $("#mcCadena").checked ? `${detras} clips de detrás se ${cambio > 0 ? "retrasan" : "adelantan"} ${Math.abs(cambio).toFixed(2)} s`
+    : cambio > 0 ? "Puede pisar al clip siguiente" : "Quedará un hueco detrás";
+  $("#mcPlay").textContent = EC.el && !EC.el.paused ? "❚❚" : "▶";
+}
+// Cambiar entrada / salida respetando el medio (0…D) y un largo mínimo de un fotograma
+function fijarEC(lado, s) {
+  s = redF(s);
+  if (lado === "entrada") EC.ent = Math.max(0, Math.min(s, EC.sal - 1 / FPS));
+  else EC.sal = Math.min(EC.D, Math.max(s, EC.ent + 1 / FPS));
+  pintarEC();
+}
+function aplicarEditorClip() {
+  const c = EC.c, dur = redF(EC.sal - EC.ent), cambio = Math.round((dur - c.duracion) * 1000) / 1000;
+  const cambios = { duracion: dur };
+  if (EC.conMedio) cambios.entrada = redF(EC.ent);
+  const igual = Math.abs(cambio) < 1e-4 && (!EC.conMedio || Math.abs(cambios.entrada - c.entrada) < 1e-4);
+  if (igual) return cerrarEditorClip();
+  const lista = [];
+  if ($("#mcCadena").checked && Math.abs(cambio) >= 1e-4) lista.push({ op: "desplazar", desde: Math.round((finC(c) - 0.001) * 1000) / 1000, delta: cambio });
+  lista.push({ op: "modificar_clips", ids: [c.id], cambios });
+  ops(lista, `nuevo corte de ${c.id}` + (Math.abs(cambio) >= 1e-4 ? ` (${cambio > 0 ? "+" : ""}${cambio.toFixed(2)} s${$("#mcCadena").checked ? ", desplazando lo de detrás" : ""})` : ""))
+    .then(() => { seleccionar([c.id]); cerrarEditorClip(); }).catch(() => {});
+}
+function reproducirEC(soloCorte) {
+  if (!EC.el) return;
+  if (!EC.el.paused) { EC.el.pause(); return pintarEC(); }
+  if (soloCorte || tEC() >= EC.sal - 0.02 || tEC() < EC.ent - 0.02) EC.el.currentTime = EC.ent;
+  EC.hastaSalida = true;
+  EC.el.play().catch(() => {});
+  const paso = () => {
+    if (!EC.c || EC.el.paused) return pintarEC();
+    if (EC.hastaSalida && EC.el.currentTime >= EC.sal) { EC.el.pause(); EC.el.currentTime = EC.sal; return pintarEC(); }
+    pintarEC();
+    requestAnimationFrame(paso);
+  };
+  requestAnimationFrame(paso);
+}
+$("#mcTira").addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  const asa = e.target.classList.contains("asa") ? (e.target.classList.contains("i") ? "entrada" : "salida") : null;
+  const enRango = !asa && e.target.closest("#mcRango");
+  const s0 = sDeX(e.clientX), ent0 = EC.ent, sal0 = EC.sal;
+  let movido = false;
+  if (!asa && !enRango) irEC(s0);
+  const mover = ev => {
+    movido = true;
+    const s = sDeX(ev.clientX);
+    if (asa === "entrada" && EC.conMedio) { fijarEC("entrada", s); irEC(EC.ent); }
+    else if (asa === "salida") { fijarEC("salida", s); irEC(EC.sal); }
+    else if (enRango && EC.conMedio) {   // deslizar: mismo largo, otro trozo del medio
+      const d = Math.max(-ent0, Math.min(EC.D - sal0, s - s0));
+      EC.ent = redF(ent0 + d); EC.sal = redF(sal0 + d);
+      irEC(EC.ent);
+    } else irEC(s);
+  };
+  const soltar = () => {
+    window.removeEventListener("mousemove", mover);
+    window.removeEventListener("mouseup", soltar);
+    if (enRango && !movido) irEC(s0);
+    if (movido && (asa || enRango) && (EC.ent < EC.v0 || EC.sal > EC.v1 || EC.sal - EC.ent < (EC.v1 - EC.v0) * 0.25)) encuadrar();
+  };
+  window.addEventListener("mousemove", mover);
+  window.addEventListener("mouseup", soltar);
+});
+$("#mcTira").addEventListener("wheel", e => {
+  e.preventDefault();
+  const s = sDeX(e.clientX), span = EC.v1 - EC.v0;
+  if (e.ctrlKey) {   // zoom alrededor del ratón
+    const nuevo = Math.max(1, Math.min(EC.D, span * (e.deltaY < 0 ? 0.8 : 1.25))), f = (s - EC.v0) / span;
+    EC.v0 = Math.max(0, s - nuevo * f); EC.v1 = Math.min(EC.D, EC.v0 + nuevo);
+  } else {           // desplazar la ventana
+    const d = span * 0.15 * Math.sign(e.deltaY || e.deltaX);
+    const d2 = Math.max(-EC.v0, Math.min(EC.D - EC.v1, d));
+    EC.v0 += d2; EC.v1 += d2;
+  }
+  pintarTira();
+}, { passive: false });
+document.querySelectorAll("[data-mc]").forEach(b => b.addEventListener("click", () => {
+  const lado = b.dataset.mc, d = b.dataset.d === "-f" ? -1 / FPS : b.dataset.d === "+f" ? 1 / FPS : +b.dataset.d;
+  fijarEC(lado, (lado === "entrada" ? EC.ent : EC.sal) + d);
+  irEC(lado === "entrada" ? EC.ent : EC.sal);
+  if (EC.ent < EC.v0 || EC.sal > EC.v1) encuadrar();
+}));
+for (const [id, lado] of [["#mcEntrada", "entrada"], ["#mcSalida", "salida"]]) {
+  $(id).addEventListener("change", () => { const s = leerTc($(id).value); if (s !== null) { fijarEC(lado, s); encuadrar(); } else pintarEC(); });
+  $(id).addEventListener("keydown", e => { if (e.key === "Enter") { e.stopPropagation(); $(id).blur(); } });
+}
+$("#mcMarcarEntrada").onclick = () => fijarEC("entrada", tEC());
+$("#mcMarcarSalida").onclick = () => fijarEC("salida", tEC());
+$("#mcIrEntrada").onclick = () => irEC(EC.ent);
+$("#mcIrSalida").onclick = () => irEC(EC.sal);
+$("#mcPlay").onclick = () => reproducirEC(false);
+$("#mcVerCorte").onclick = () => { if (EC.el && !EC.el.paused) EC.el.pause(); reproducirEC(true); };
+$("#mcCadena").onchange = () => { localStorage.mcCadena = $("#mcCadena").checked ? "1" : "0"; pintarEC(); };
+$("#mcCerrar").onclick = $("#mcCancelar").onclick = cerrarEditorClip;
+$("#mcAplicar").onclick = aplicarEditorClip;
+$("#modalClip").addEventListener("mousedown", e => { if (e.target.id === "modalClip") cerrarEditorClip(); });
+$("#mcVideo").addEventListener("seeked", pintarEC);
+// Teclado del modal: va antes que el de la línea de tiempo y no lo deja pasar
+document.addEventListener("keydown", e => {
+  if (!EC.c) return;
+  const k = e.key, enCampo = e.target.closest("input, textarea, select");
+  if (k === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); return cerrarEditorClip(); }
+  if (enCampo) return;   // los campos se tratan solos (Intro confirma) y la línea de tiempo ya los ignora
+  e.stopImmediatePropagation();
+  if (k === " ") { e.preventDefault(); reproducirEC(false); }
+  else if (k === "Enter") { e.preventDefault(); aplicarEditorClip(); }
+  else if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); if (EC.el) EC.el.pause(); EC.hastaSalida = false; irEC(tEC() + (k === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : 1 / FPS)); }
+  else if (k === "i" || k === "I") { if (EC.conMedio) fijarEC("entrada", tEC()); }
+  else if (k === "o" || k === "O") fijarEC("salida", tEC());
+  else if (k === "Home") irEC(EC.ent);
+  else if (k === "End") irEC(EC.sal);
+}, true);
 
 // ---------- inspector ----------
 let inspeccionado = "";

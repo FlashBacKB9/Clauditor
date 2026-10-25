@@ -16,6 +16,8 @@ No usa la API de Claude: es un servidor MCP local que Claude Code (o cualquier c
 - Cambios en directo: el servidor vigila `proyecto.json` y avisa a la ventana por SSE.
 - Historial: una copia antes de cada cambio, con Ctrl+Z / «deshaz eso».
 - Efectos de audio sencillos (eco, realce de voz) y recorte con arrastre (Mayús para cerrar huecos).
+- Editor de cada clip (doble clic): alarga o acorta el corte por delante y por detrás, o desliza el trozo
+  que se ve, sobre el vídeo original con miniaturas y transcripción; lo que va detrás se mueve para que encaje.
 
 **Todavía no exporta el vídeo final.** Sirve para decidir el montaje; el render se hace aparte.
 
@@ -107,6 +109,7 @@ por su cuenta, así que también puedes trabajar desde el navegador.
 | S o Ctrl+B | Dividir en el cabezal |
 | Supr / Retroceso | Borrar (con Mayús cierra el hueco) |
 | C | Comentar en el cabezal |
+| Doble clic en un clip | Editor del clip: entrada y salida sobre el medio original, con miniaturas y transcripción |
 | Ctrl+Z | Deshacer |
 | + / − o Ctrl+rueda | Zoom de la línea de tiempo |
 | Alt al arrastrar | Sin imán |
