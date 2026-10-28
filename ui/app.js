@@ -189,6 +189,17 @@ function precargar(L, pid, c, actual) {
   const libre = L.v.find(v => v !== actual);
   if (!libre) return;
   if (libre.dataset.medio !== sig.medio) cargar(libre, sig.medio, sig.entrada);
+  else if (reproduciendo && sig.inicio - t < 0.35 && libre.readyState >= 2) {
+    // Arranca un poco antes del corte, sin verse ni oírse, para que en el corte ya esté en marcha (si arrancara
+    // justo en el corte, se quedaría unas décimas congelado y el corte parecería llegar tarde)
+    libre.dataset.preroll = "1";
+    libre.muted = true;
+    if (libre.paused) {
+      const objetivo = Math.max(0, (sig.entrada || 0) - (sig.inicio - t));
+      if (Math.abs(libre.currentTime - objetivo) > 0.05 && !libre.seeking) libre.currentTime = objetivo;
+      libre.play().catch(() => {});
+    }
+  }
   else if (libre.readyState >= 1 && libre.paused && !libre.seeking && Math.abs(libre.currentTime - sig.entrada) > 0.1) libre.currentTime = sig.entrada;
 }
 // Cartel de etiqueta de recambio: entra cayendo con un pequeño giro y sale fundiendo. Depende solo del
@@ -254,7 +265,8 @@ function pintarVisor() {
       if (L.rot.className !== clase) L.rot.className = clase;
       for (const el of [...L.v, L.img]) el.classList.toggle("vis", el === mostrar && !(c && c.oculto));
     }
-    for (const v of L.v) if (v !== mostrar && !v.paused) v.pause();
+    if (mostrar && mostrar.dataset) mostrar.dataset.preroll = "";
+    for (const v of L.v) if (v !== mostrar && !v.paused && !v.dataset.preroll) v.pause();
     if (!p.oculta && L.v) precargar(L, p.id, c, mostrar && mostrar.tagName !== "IMG" ? mostrar : null);
   }
   // Voz en off del guion como subtítulo y nota del plano debajo del visor
@@ -286,7 +298,7 @@ function play() {
 function parar() {
   reproduciendo = false;
   $("#bPlay").innerHTML = ico("play");
-  for (const L of Object.values(capas)) L.v.forEach(v => v.pause());
+  for (const L of Object.values(capas)) L.v.forEach(v => { v.pause(); v.dataset.preroll = ""; });
   t = Math.round(t * FPS) / FPS;
   guardarCabezal();
 }
@@ -295,11 +307,29 @@ function guardarCabezal() {
   clearTimeout(tGuardar);
   if (!reproduciendo) tGuardar = setTimeout(() => api("/api/estado", { cabezal: Math.round(t * 1000) / 1000 }).catch(() => {}), 400);
 }
+// Segundo del montaje según el audio que está sonando (el clip de audio más largo bajo el cabezal, que suele
+// ser la música), o null si no suena ninguno ya arrancado
+function tiempoAudio() {
+  let mejor = null;
+  for (const p of P.pistas) {
+    const L = capas[p.id];
+    if (!L || !L.audio || p.mute || p.oculta) continue;
+    const c = clipEn(p.id, t);
+    if (!c || !c.medio || c.mute || (mejor && c.duracion <= mejor.c.duracion)) continue;
+    const el = L.v.find(v => v.dataset.uso === "actual" && v.dataset.medio === c.medio);
+    if (el && !el.paused && !el.seeking && el.readyState >= 3) mejor = { c, el };
+  }
+  return mejor ? mejor.c.inicio + mejor.el.currentTime - (mejor.c.entrada || 0) : null;
+}
 let ultimoTc = "";
 function bucle() {
   if (P) {
     if (reproduciendo) {
       t = relojT + (performance.now() - relojPerf) / 1000;
+      // Mientras suena música el reloj la sigue a ella (corrigiendo poco a poco para no dar saltos): así los
+      // cortes caen donde suenan los golpes aunque el audio arranque tarde o se retrase.
+      const m = tiempoAudio();
+      if (m !== null && Math.abs(m - t) < 0.6) { relojT += (m - t) * 0.25; t = relojT + (performance.now() - relojPerf) / 1000; }
       if (t >= total()) { t = total(); parar(); }
     }
     pintarVisor();
@@ -1248,7 +1278,7 @@ function conectar() {
   t = Math.min(est.cabezal || 0, total());
   sel = new Set((est.seleccion || []).filter(id => P.clips.some(c => c.id === id)));
   $("#titulo").textContent = P.nombre || "Clauditor";
-  fetch("/api/info").then(r => r.json()).then(i => { infoProyecto = i; $("#nombreProyecto").textContent = i.carpeta || ""; $("#nombreProyecto").title = "Carpeta del proyecto"; }).catch(() => {});
+  fetch("/api/info").then(r => r.json()).then(i => { infoProyecto = i; if (i.encuadre) $("#capas").dataset.encuadre = i.encuadre;$("#nombreProyecto").textContent = i.carpeta || ""; $("#nombreProyecto").title = "Carpeta del proyecto"; }).catch(() => {});
   alCambiarProyecto();
   cargarMedios().then(dibujarLinea, () => {});
   centrarEn(t);
