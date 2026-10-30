@@ -27,6 +27,8 @@ const POR_DEFECTO = {
   fps: 30,
   medios: ["medios"],          // carpetas con vídeos, fotos, animaciones y audios (relativas al proyecto o absolutas)
   transcripciones: null,       // JSON { "nombre_sin_extension": [{ inicio, fin, texto }] } (opcional)
+  encuadre: null,              // vídeos y fotos que no son 16:9: null = enteros con bandas; "arriba" | "centro" | "abajo" =
+                               // llenan el 16:9 recortando lo que sobra, conservando esa parte (p. ej. 4:3 de casco: "arriba")
   herramientas: {
     deepfilter: null,          // ruta a deepFilter(.exe) para limpiar audio (opcional)
     modeloDeepFilter: null,    // carpeta del modelo DeepFilterNet3 (opcional)

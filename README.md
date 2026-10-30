@@ -73,6 +73,7 @@ mi-video/
 | `fps` | Fotogramas por segundo del montaje (30) |
 | `medios` | Carpetas con el material, relativas al proyecto o absolutas (`["medios"]`) |
 | `transcripciones` | JSON con lo que se dice en cada vídeo: `{ "video_sin_extension": [{ "inicio", "fin", "texto" }] }` |
+| `encuadre` | Vídeos y fotos que no son 16:9: sin poner se ven enteros con bandas; `"arriba"`, `"centro"` o `"abajo"` llenan el 16:9 recortando y conservan esa parte (p. ej. cámara 4:3 en el casco o el manillar: `"arriba"`) |
 | `herramientas.deepfilter` | Ruta a `deepFilter` para limpiar el audio con DeepFilterNet |
 | `herramientas.modeloDeepFilter` | Carpeta del modelo DeepFilterNet3 |
 
