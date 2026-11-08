@@ -89,19 +89,24 @@ def tramo_base(i, c, a, b):
         return sal
     src = CAT[c["medio"]]["ruta"]
     if tipo(c) == "foto":
-        # foto girada según EXIF y encajada en un lienzo al doble de tamaño, para que el zoom no tiemble
-        tmp = TRABAJO / f"foto_{i:04d}.png"
+        # Foto girada según EXIF en un lienzo del tamaño de su zoom máximo; cada fotograma se calcula con
+        # una transformación con precisión de fracción de píxel (zoompan redondea a píxeles enteros y la foto vibra).
+        z = max(1.0, c.get("zoom") or 1)
+        cw, ch = math.ceil(W * z), math.ceil(H * z)
         im = ImageOps.exif_transpose(Image.open(src)).convert("RGB")
-        lienzo = Image.new("RGB", (2 * W, 2 * H))
-        im = ImageOps.fit(im, (2 * W, 2 * H), Image.LANCZOS) if ENCUADRE else ImageOps.contain(im, (2 * W, 2 * H), Image.LANCZOS)
-        lienzo.paste(im, ((2 * W - im.width) // 2, (2 * H - im.height) // 2)); lienzo.save(tmp)
-        z = c.get("zoom") or 1
-        n = max(1, round(d * FPS)); off = (a - c["inicio"]) * FPS; tot = c["duracion"] * FPS
-        zexp = f"1+({z}-1)*({off:.3f}+on)/{tot:.3f}"
-        ff(["-loop", "1", "-framerate", str(FPS), "-t", f"{d:.4f}", "-i", str(tmp),
-            "-vf", f"zoompan=z='{zexp}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={W}x{H}:fps={FPS},setsar=1"]
-           + VCOMUN + ["-frames:v", str(n), str(sal)])
-        tmp.unlink(missing_ok=True)
+        im = ImageOps.fit(im, (cw, ch), Image.LANCZOS) if ENCUADRE else ImageOps.contain(im, (cw, ch), Image.LANCZOS)
+        lienzo = Image.new("RGB", (cw, ch)); lienzo.paste(im, ((cw - im.width) // 2, (ch - im.height) // 2))
+        n = max(1, round(d * FPS)); off = (a - c["inicio"]) * FPS; tot = max(1e-6, c["duracion"] * FPS)
+        p = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                              "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-vf", "setsar=1"] + VCOMUN + ["-frames:v", str(n), str(sal)],
+                             stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        for k in range(n):
+            s_ = 1 + (z - 1) * (off + k) / tot           # zoom de este fotograma (1 → z a lo largo del clip)
+            f = (cw / W) / s_                              # píxeles del lienzo por píxel de salida
+            fr = lienzo.transform((W, H), Image.AFFINE, (f, 0, cw / 2 - W / 2 * f, 0, f, ch / 2 - H / 2 * f), resample=Image.BICUBIC)
+            p.stdin.write(fr.tobytes())
+        p.stdin.close(); err = p.stderr.read().decode(errors="replace")
+        if p.wait(): raise RuntimeError(err[-2000:])
         return sal
     ent = (c.get("entrada") or 0) + (a - c["inicio"])
     dx = c.get("desplaza_x") or 0
