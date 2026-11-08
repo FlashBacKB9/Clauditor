@@ -190,6 +190,10 @@ textarea { width: 100%; resize: vertical; }
 .ico { width: 15px; height: 15px; vertical-align: -3px; flex: none; }
 button .ico + * , button .ico { pointer-events: none; }
 button.icono { padding: 4px 6px; line-height: 0; }
+button.vel { min-width: 42px; padding: 4px 6px; font: 600 12px Consolas, monospace; }
+button.vel.activa { background: var(--acento); border-color: var(--acento); color: #1a1208; }
+#menu .desplegable button[data-vel] .ico:first-child { opacity: 0; }
+#menu .desplegable button[data-vel].marcado .ico:first-child { opacity: 1; }
 button.icono.grande { padding: 4px 12px; }
 button.icono.grande .ico { width: 17px; height: 17px; }
 .et2 .ico { width: 11px; height: 11px; vertical-align: -1px; margin-right: 2px; }

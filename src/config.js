@@ -50,11 +50,26 @@ const RUTAS = {
   audio: path.join(DIR, "audio"),
   proxies: path.join(INTERNO, "proxies"),
   cache: path.join(INTERNO, "cache"),
-  medios: (cfg.medios || []).map(enProyecto),
   transcripciones: enProyecto(cfg.transcripciones),
   deepfilter: enProyecto(cfg.herramientas.deepfilter),
   modeloDeepFilter: enProyecto(cfg.herramientas.modeloDeepFilter),
 };
+// Las carpetas de medios se vuelven a leer de clauditor.json si el fichero cambia: así se puede añadir una
+// carpeta con el programa (y el servidor MCP) abiertos.
+let mtimeConfig = 0, medios = (cfg.medios || []).map(enProyecto);
+try { mtimeConfig = fs.statSync(FICH_CONFIG).mtimeMs; } catch {}
+Object.defineProperty(RUTAS, "medios", {
+  enumerable: true,
+  get() {
+    let m = 0;
+    try { m = fs.statSync(FICH_CONFIG).mtimeMs; } catch {}
+    if (m !== mtimeConfig) {
+      mtimeConfig = m;
+      try { cfg.medios = JSON.parse(fs.readFileSync(FICH_CONFIG, "utf8")).medios || POR_DEFECTO.medios; medios = cfg.medios.map(enProyecto); } catch {}
+    }
+    return medios;
+  },
+});
 for (const d of [RUTAS.historial, RUTAS.audio, RUTAS.proxies, RUTAS.cache]) fs.mkdirSync(d, { recursive: true });
 
 module.exports = { DIR, cfg, RUTAS, FICH_CONFIG };

@@ -39,6 +39,7 @@ function catalogo() {
   const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
   for (const d of [...RUTAS.medios, RUTAS.audio]) {
     for (const f of ls(d)) {
+      if (f.startsWith(".")) continue;   // ocultos: «.trashed-…» de la papelera del móvil, ficheros de sistema
       const ruta = path.join(d, f);
       if (EXT_VIDEO.test(f)) meter(ruta, tieneAlfa(ruta) ? "animacion" : "video");
       else if (EXT_FOTO.test(f)) meter(ruta, "foto");

@@ -117,6 +117,7 @@ por su cuenta, así que también puedes trabajar desde el navegador.
 | Tecla | Acción |
 |---|---|
 | Espacio | Reproducir / parar |
+| < / > · botón 1x | Velocidad de reproducción: 1x, 1,5x o 2x para revisar más rápido |
 | ← / → | Fotograma anterior / siguiente (Mayús: 1 s) |
 | Inicio / Fin | Principio / final del montaje |
 | S o Ctrl+B | Dividir en el cabezal |
