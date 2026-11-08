@@ -25,6 +25,8 @@ ap.add_argument("--alto", type=int, default=1080)
 ap.add_argument("--desde", type=float, default=0)
 ap.add_argument("--hasta", type=float)
 ap.add_argument("--desde-pasada", type=int, default=1, help="retomar: 2 = capas, 3 = audio")
+ap.add_argument("--calidad", choices=["normal", "max"], default="normal", help="max: H.265 de alta tasa (para 4K o archivo final)")
+ap.add_argument("--trabajo", help="carpeta para los ficheros intermedios (por defecto .clauditor/export del proyecto)")
 ap.add_argument("--tramo", type=float, default=120, help="segundos por tramo en la pasada de capas y de audio")
 args = ap.parse_args()
 
@@ -41,7 +43,7 @@ CAT = json.loads(subprocess.run(["node", "-e",
     "console.log(JSON.stringify({hdr:[M.HDR_GPU,M.HDR_CPU],cat:Object.fromEntries(Object.entries(M.catalogo()).map(([k,v])=>[k,{ruta:v.ruta,tipo:v.tipo,hdr:v.tipo==='video'&&M.esHDR(v.ruta)}]))}))"],
     capture_output=True, text=True).stdout)
 HDR_GPU, HDR_CPU = CAT["hdr"]; CAT = CAT["cat"]
-TRABAJO = DIR / ".clauditor" / "export"
+TRABAJO = Path(args.trabajo) if args.trabajo else DIR / ".clauditor" / "export"
 TRABAJO.mkdir(parents=True, exist_ok=True)
 SALIDA = Path(args.salida) if args.salida else DIR / f"{cfg.get('nombre', 'montaje')}_{H}p.mp4"
 FUENTE_CARTEL = str(AQUI / "fuentes" / "SpecialElite-Regular.ttf")
@@ -59,7 +61,9 @@ def a_sdr(c):
     """(argumentos de entrada, filtro) para convertir un vídeo HDR a SDR; vacíos si no es HDR."""
     if not CAT.get(c.get("medio") or "", {}).get("hdr"): return [], ""
     return (["-init_hw_device", "vulkan"], HDR_GPU + ",") if VULKAN else ([], HDR_CPU + ",")
-VCODEC = ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "19", "-b:v", "12M", "-maxrate", "20M", "-bufsize", "40M", "-g", str(FPS * 2)] if nvenc_ok() \
+MAX = args.calidad == "max"
+VCODEC = ["-c:v", "hevc_nvenc", "-preset", "p7", "-tune", "hq", "-rc", "vbr", "-cq", "16", "-b:v", "0", "-maxrate", "150M", "-bufsize", "300M",
+          "-spatial-aq", "1", "-temporal-aq", "1", "-rc-lookahead", "32", "-g", str(FPS * 2), "-tag:v", "hvc1"] if MAX and nvenc_ok() else     ["-c:v", "libx265", "-preset", "slow", "-crf", "16", "-g", str(FPS * 2), "-tag:v", "hvc1"] if MAX else     ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "19", "-b:v", "12M", "-maxrate", "20M", "-bufsize", "40M", "-g", str(FPS * 2)] if nvenc_ok() \
     else ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-g", str(FPS * 2)]
 VCOMUN = VCODEC + ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-pix_fmt", "yuv420p", "-r", str(FPS), "-video_track_timescale", "15360"]
 
@@ -86,8 +90,8 @@ tipo = lambda c: CAT.get(c.get("medio") or "", {}).get("tipo") or ("texto" if no
 def visible_texto(c):
     t = c.get("texto") or ""
     return t and not t.startswith("GRÁFICO") and not t.startswith("POR SUBIR")
-ajuste = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}" if ENCUADRE
-          else f"scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black")
+ajuste = (f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H}" if ENCUADRE
+          else f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:black")
 
 # ---------------- pasada 1: imagen base (V1) ----------------
 def tramo_base(i, c, a, b):
@@ -340,5 +344,5 @@ if args.desde_pasada <= 1: pasada_base(); print(f"   ({time.time() - inicio:.0f}
 if args.desde_pasada <= 2: pasada_capas(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
 pasada_audio(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
 ff(["-i", str(TRABAJO / "video.mp4"), "-i", str(TRABAJO / "audio.wav"), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-    "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", "-shortest", str(SALIDA)])
+    "-c:a", "aac", "-b:a", "320k" if MAX else "256k", "-movflags", "+faststart", "-shortest", str(SALIDA)])
 print(f"HECHO {SALIDA} · {T1 - T0:.1f} s de montaje en {(time.time() - inicio) / 60:.1f} min", flush=True)
