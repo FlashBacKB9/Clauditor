@@ -38,8 +38,9 @@ cq = lambda x: x * H / 100              # unidades cqh del editor → píxeles
 ENCUADRE = cfg.get("encuadre")
 CAT = json.loads(subprocess.run(["node", "-e",
     f"process.argv.push('--proyecto',{json.dumps(str(DIR))});const M=require({json.dumps(str(AQUI.parent / 'src' / 'medios.js'))});"
-    "console.log(JSON.stringify(Object.fromEntries(Object.entries(M.catalogo()).map(([k,v])=>[k,{ruta:v.ruta,tipo:v.tipo}]))))"],
+    "console.log(JSON.stringify({hdr:[M.HDR_GPU,M.HDR_CPU],cat:Object.fromEntries(Object.entries(M.catalogo()).map(([k,v])=>[k,{ruta:v.ruta,tipo:v.tipo,hdr:v.tipo==='video'&&M.esHDR(v.ruta)}]))}))"],
     capture_output=True, text=True).stdout)
+HDR_GPU, HDR_CPU = CAT["hdr"]; CAT = CAT["cat"]
 TRABAJO = DIR / ".clauditor" / "export"
 TRABAJO.mkdir(parents=True, exist_ok=True)
 SALIDA = Path(args.salida) if args.salida else DIR / f"{cfg.get('nombre', 'montaje')}_{H}p.mp4"
@@ -49,9 +50,18 @@ FUENTE_ROTULO = "C:/Windows/Fonts/segoeuib.ttf" if os.path.exists("C:/Windows/Fo
 def nvenc_ok():
     r = subprocess.run(["ffmpeg", "-hide_banner", "-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1", "-c:v", "h264_nvenc", "-f", "null", "-"], capture_output=True)
     return r.returncode == 0
+def vulkan_ok():
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-init_hw_device", "vulkan", "-f", "lavfi", "-i", "testsrc2=s=256x256:d=0.1,format=yuv420p10le",
+                        "-vf", HDR_GPU, "-f", "null", "-"], capture_output=True)
+    return r.returncode == 0
+VULKAN = vulkan_ok()
+def a_sdr(c):
+    """(argumentos de entrada, filtro) para convertir un vídeo HDR a SDR; vacíos si no es HDR."""
+    if not CAT.get(c.get("medio") or "", {}).get("hdr"): return [], ""
+    return (["-init_hw_device", "vulkan"], HDR_GPU + ",") if VULKAN else ([], HDR_CPU + ",")
 VCODEC = ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "19", "-b:v", "12M", "-maxrate", "20M", "-bufsize", "40M", "-g", str(FPS * 2)] if nvenc_ok() \
     else ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-g", str(FPS * 2)]
-VCOMUN = VCODEC + ["-pix_fmt", "yuv420p", "-r", str(FPS), "-video_track_timescale", "15360"]
+VCOMUN = VCODEC + ["-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-pix_fmt", "yuv420p", "-r", str(FPS), "-video_track_timescale", "15360"]
 
 def ff(argv, **kw):
     r = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"] + argv, capture_output=True, text=True, **kw)
@@ -113,7 +123,8 @@ def tramo_base(i, c, a, b):
     vf = ajuste + (f",crop=iw:ih:{-dx}*iw:0,pad={W}:{H}:{dx}*{W}:0" if False else "") + f",setsar=1,fps={FPS}"
     if dx:   # desplazamiento horizontal: se corre la imagen y entra negro por el otro lado
         vf = ajuste + f",pad={2 * W}:{H}:{W // 2}:0,crop={W}:{H}:{W // 2}-({dx})*{W}:0,setsar=1,fps={FPS}"
-    ff(["-ss", f"{ent:.4f}", "-t", f"{d + 0.5:.4f}", "-i", src, "-vf", vf, "-an"] + VCOMUN + ["-t", f"{d:.4f}", str(sal)])
+    ea, fh = a_sdr(c)
+    ff(ea + ["-ss", f"{ent:.4f}", "-t", f"{d + 0.5:.4f}", "-i", src, "-vf", fh + vf, "-an"] + VCOMUN + ["-t", f"{d:.4f}", str(sal)])
     return sal
 
 def pasada_base():
@@ -235,8 +246,10 @@ def pasada_capas():
                 if tipo(c) == "foto":
                     argv += ["-loop", "1", "-t", f"{cb - ca:.4f}", "-i", src]
                 else:
-                    argv += ["-ss", f"{ent:.4f}", "-t", f"{cb - ca:.4f}", "-i", src]
-                filtros.append(f"[{j}:v]{ajuste.replace('black', 'black@0') if tipo(c) == 'animacion' else ajuste},format=rgba,fps={FPS},setpts=PTS-STARTPTS,tpad=start_duration={off:.4f}:color=black@0[c{j}]")
+                    ea, fh = a_sdr(c)
+                    argv += ea + ["-ss", f"{ent:.4f}", "-t", f"{cb - ca:.4f}", "-i", src]
+                fh = a_sdr(c)[1] if tipo(c) == "video" else ""
+                filtros.append(f"[{j}:v]{fh}{ajuste.replace('black', 'black@0') if tipo(c) == 'animacion' else ajuste},format=rgba,fps={FPS},setpts=PTS-STARTPTS,tpad=start_duration={off:.4f}:color=black@0[c{j}]")
                 xy = f"x={(c.get('desplaza_x') or 0) * W:.1f}:y=0"
             else:
                 png, x, y = pngs[c["id"]]
