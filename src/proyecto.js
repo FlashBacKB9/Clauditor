@@ -79,7 +79,7 @@ const OPS = {
       ...(a.medio ? { medio: a.medio, entrada: r3(a.entrada ?? 0) } : {}),
       ...(a.texto ? { texto: a.texto } : {}),
     };
-    for (const k of ["volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x"]) if (a[k] !== undefined) c[k] = a[k];
+    for (const k of ["volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x", "fundido_entrada", "fundido_salida"]) if (a[k] !== undefined) c[k] = a[k];
     p.clips.push(c);
     ordenar(p);
     return `añadido ${c.id} (${c.medio || "rótulo"}) en ${c.pista} a ${c.inicio}s`;
