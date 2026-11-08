@@ -24,6 +24,7 @@ ap.add_argument("--salida")
 ap.add_argument("--alto", type=int, default=1080)
 ap.add_argument("--desde", type=float, default=0)
 ap.add_argument("--hasta", type=float)
+ap.add_argument("--desde-pasada", type=int, default=1, help="retomar: 2 = capas, 3 = audio")
 ap.add_argument("--tramo", type=float, default=120, help="segundos por tramo en la pasada de capas y de audio")
 args = ap.parse_args()
 
@@ -230,17 +231,17 @@ def pasada_capas():
                     argv += ["-loop", "1", "-t", f"{cb - ca:.4f}", "-i", src]
                 else:
                     argv += ["-ss", f"{ent:.4f}", "-t", f"{cb - ca:.4f}", "-i", src]
-                filtros.append(f"[{j}:v]{ajuste.replace('black', 'black@0') if tipo(c) == 'animacion' else ajuste},format=rgba,fps={FPS},setpts=PTS-STARTPTS+{off:.4f}/TB[c{j}]")
+                filtros.append(f"[{j}:v]{ajuste.replace('black', 'black@0') if tipo(c) == 'animacion' else ajuste},format=rgba,fps={FPS},setpts=PTS-STARTPTS,tpad=start_duration={off:.4f}:color=black@0[c{j}]")
                 xy = f"x={(c.get('desplaza_x') or 0) * W:.1f}:y=0"
             else:
                 png, x, y = pngs[c["id"]]
-                argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{cb - ca:.4f}", "-i", str(png)]
+                argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{b - a:.4f}", "-i", str(png)]   # dura todo el tramo: va al paso de la base
                 # entrada: aparece en ~0,36 s y cae 6 % del alto con frenado; salida: se funde en 0,35 s
                 t_in = ca - c["inicio"]; resto = c["_fin"] - ca
                 fade = []
-                if t_in < 0.36: fade.append(f"fade=t=in:st={max(0, 0.36 - (0.36 - t_in)):.3f}:d={0.36 - t_in:.3f}:alpha=1")
-                if resto > 0: fade.append(f"fade=t=out:st={max(0, resto - 0.35):.3f}:d={min(0.35, resto):.3f}:alpha=1")
-                filtros.append(f"[{j}:v]format=rgba,{','.join(fade) + ',' if fade else ''}setpts=PTS-STARTPTS+{off:.4f}/TB[c{j}]")
+                if t_in < 0.36: fade.append(f"fade=t=in:st={off:.3f}:d={0.36 - t_in:.3f}:alpha=1")
+                if resto > 0: fade.append(f"fade=t=out:st={off + max(0, resto - 0.35):.3f}:d={min(0.35, resto):.3f}:alpha=1")
+                filtros.append(f"[{j}:v]format=rgba,{','.join(fade) + ',' if fade else ''}setpts=PTS-STARTPTS[c{j}]")
                 if k == "cartel":
                     ini_rel = c["inicio"] - a   # inicio del cartel en tiempo del tramo (puede ser negativo)
                     xy = f"x={x}:y='{y}-{cq(6):.1f}*pow(1-min(1,max(0,(t-({ini_rel:.4f}))/0.5)),3)'"
@@ -301,20 +302,24 @@ def pasada_audio():
             etiq.append(f"[a{j}]")
         d = b - a
         if dentro:
-            filtros.append(f"{''.join(etiq)}amix=inputs={len(etiq)}:normalize=0:duration=longest,apad=whole_dur={d:.4f},atrim=0:{d:.4f}[mix]")
-            ff(argv + ["-filter_complex", ";".join(filtros), "-map", "[mix]", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(sal)])
+            # un silencio de la duración exacta del tramo va primero y manda en la duración de la mezcla
+            n = len(dentro)
+            argv += ["-f", "lavfi", "-t", f"{d:.4f}", "-i", "anullsrc=r=48000:cl=stereo"]
+            filtros.append(f"[{n}:a]{''.join(etiq)}amix=inputs={n + 1}:normalize=0:duration=first:dropout_transition=0[mix]")
+            ff(argv + ["-filter_complex", ";".join(filtros), "-map", "[mix]", "-t", f"{d:.4f}", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(sal)])
         else:
             ff(["-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo", "-t", f"{d:.4f}", "-c:a", "pcm_s16le", str(sal)])
         res.append(sal)
         print(f"   tramo {i + 1}/{len(tramos)} ({len(dentro)} sonidos)", flush=True)
     lista = TRABAJO / "audio.txt"
     lista.write_text("".join(f"file '{r.as_posix()}'\n" for r in res), encoding="utf-8")
-    ff(["-f", "concat", "-safe", "0", "-i", str(lista), "-af", "alimiter=limit=0.95:level=false", "-c:a", "pcm_s16le", str(TRABAJO / "audio.wav")])
-    for r in res: r.unlink(missing_ok=True)
+    ff(["-f", "concat", "-safe", "0", "-i", str(lista), "-af", "alimiter=limit=0.89:level=false", "-c:a", "pcm_s16le", str(TRABAJO / "audio.wav")])
+    if not os.environ.get('CLAUDITOR_DEPURAR'):
+        for r in res: r.unlink(missing_ok=True)
 
 inicio = time.time()
-pasada_base(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
-pasada_capas(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
+if args.desde_pasada <= 1: pasada_base(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
+if args.desde_pasada <= 2: pasada_capas(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
 pasada_audio(); print(f"   ({time.time() - inicio:.0f} s)", flush=True)
 ff(["-i", str(TRABAJO / "video.mp4"), "-i", str(TRABAJO / "audio.wav"), "-map", "0:v", "-map", "1:a", "-c:v", "copy",
     "-c:a", "aac", "-b:a", "256k", "-movflags", "+faststart", "-shortest", str(SALIDA)])
