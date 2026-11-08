@@ -85,7 +85,7 @@ const OPS = {
     return `añadido ${c.id} (${c.medio || "rótulo"}) en ${c.pista} a ${c.inicio}s`;
   },
   modificar_clips(p, { ids, cambios }) {
-    const permitidos = ["pista", "inicio", "duracion", "medio", "entrada", "texto", "volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x"];
+    const permitidos = ["pista", "inicio", "duracion", "medio", "entrada", "texto", "volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x", "fundido_entrada", "fundido_salida"];
     for (const id of ids) {
       const c = clip(p, id);
       for (const [k, v] of Object.entries(cambios)) {

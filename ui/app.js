@@ -170,7 +170,10 @@ function sincronizar(el, objetivo, c, p) {
     g.subida.gain.value = c.realce ? 6 : 0;   // +15 dB a lo que queda por debajo del umbral
     if (ctxAudio.state === "suspended" && reproduciendo) ctxAudio.resume();
   }
-  const vol = (p.mute || c.mute) ? 0 : (c.volumen ?? 1);
+  // Fundidos de audio: el volumen sube al empezar el clip y baja al acabar (segundos en fundido_entrada / _salida)
+  const fe = c.fundido_entrada > 0 ? Math.min(1, Math.max(0, (t - c.inicio) / c.fundido_entrada)) : 1;
+  const fs = c.fundido_salida > 0 ? Math.min(1, Math.max(0, (finC(c) - t) / c.fundido_salida)) : 1;
+  const vol = (p.mute || c.mute) ? 0 : (c.volumen ?? 1) * fe * fs;
   el.muted = vol === 0;
   el.volume = Math.max(0, Math.min(1, vol));
   if (el.readyState < 1) return;

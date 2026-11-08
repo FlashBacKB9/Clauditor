@@ -19,8 +19,15 @@ No usa la API de Claude: es un servidor MCP local que Claude Code (o cualquier c
 - Editor de cada clip (doble clic): alarga o acorta el corte por delante y por detrás, o desliza el trozo
   que se ve, sobre el vídeo original con miniaturas y transcripción; lo que va detrás se mueve para que encaje.
 
-**Todavía no exporta el vídeo final.** Sirve para decidir el montaje; el render se hace aparte
-(Archivo › Exportar › Para DaVinci Resolve / Final Cut genera un FCPXML con los originales).
+- Fundidos de audio de entrada y salida por clip (`fundido_entrada` / `fundido_salida`, en segundos).
+
+**Exportar el vídeo** (con el editor abierto, Python 3 con Pillow y ffmpeg; usa NVENC si hay NVIDIA):
+
+    python herramientas/exportar_video.py --proyecto <carpeta> --salida montaje.mp4 [--alto 1080] [--desde s --hasta s]
+
+Saca lo que se ve en el editor: imagen, animaciones con transparencia, carteles de etiqueta con su caída,
+rótulos, fotos con zoom y la mezcla de audio con volúmenes y fundidos (sin las notas de guion). Para acabarlo
+en DaVinci Resolve o Final Cut, Archivo › Exportar genera un FCPXML con los originales.
 
 ## Menús
 
