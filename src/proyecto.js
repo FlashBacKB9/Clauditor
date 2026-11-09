@@ -43,7 +43,14 @@ function cargar() { return JSON.parse(fs.readFileSync(FICH, "utf8")); }
 function escribir(p) {
   const tmp = FICH + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(p, null, 1));
-  fs.renameSync(tmp, FICH);
+  // En Windows el antivirus o la sincronización a veces bloquean el fichero un instante (EPERM/EBUSY): reintentar
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(tmp, FICH); return; }
+    catch (e) {
+      if (i >= 20 || !["EPERM", "EBUSY", "EACCES"].includes(e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
 }
 
 function cargarEstado() {
