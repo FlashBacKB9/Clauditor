@@ -94,7 +94,7 @@ const servidor = http.createServer(async (req, res) => {
       return;
     }
     if (ruta === "/api/proyecto") return json(res, P.cargar());
-    if (ruta === "/api/info") return json(res, { nombre: cfg.nombre, carpeta: DIR, medios: RUTAS.medios });
+    if (ruta === "/api/info") return json(res, { nombre: cfg.nombre, carpeta: DIR, medios: RUTAS.medios, encuadre: cfg.encuadre || null });
     if (ruta === "/api/estado" && req.method === "GET") return json(res, P.cargarEstado());
     if (ruta === "/api/estado" && req.method === "POST") {
       const b = await leerCuerpo(req);

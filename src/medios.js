@@ -31,6 +31,31 @@ function tieneAlfa(ruta) {
   return a;
 }
 
+// ¿El vídeo es HDR (HLG o PQ, como los de muchos móviles)? Hay que convertirlo a SDR al hacer proxies y al
+// exportar; si no, se ve gris y apagado. Cacheado en cache/hdr.json con la fecha del fichero.
+const FICH_HDR = path.join(CACHE, "hdr.json");
+let hdrs = {};
+try { hdrs = JSON.parse(fs.readFileSync(FICH_HDR, "utf8")); } catch {}
+function esHDR(ruta) {
+  let mt = 0;
+  try { mt = Math.round(fs.statSync(ruta).mtimeMs); } catch { return false; }
+  const g = hdrs[ruta];
+  if (g && g.m === mt) return g.h;
+  let h = false;
+  try {
+    const t = execFileSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_transfer", "-of", "csv=p=0", ruta], { windowsHide: true }).toString();
+    h = /arib-std-b67|smpte2084/.test(t);
+  } catch {}
+  hdrs[ruta] = { h, m: mt };
+  fs.writeFileSync(FICH_HDR, JSON.stringify(hdrs, null, 1));
+  return h;
+}
+// Retoque tras convertir: el HDR pasado a SDR queda algo plano frente a lo grabado en SDR
+const RETOQUE = "eq=contrast=1.10:brightness=-0.03:saturation=1.15";
+// Filtros de HDR a SDR (BT.709): libplacebo en la GPU con Vulkan o, si falla, zscale + tonemap en la CPU
+const HDR_GPU = "libplacebo=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv:tonemapping=bt.2390:format=yuv420p," + RETOQUE;
+const HDR_CPU = "zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,tonemap=mobius:param=0.3:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," + RETOQUE;
+
 // Clave de cada medio = nombre de archivo (si dos carpetas tienen uno con el mismo nombre, vale el primero).
 // Devuelve { clave: { ruta, tipo } } con tipo video | animacion | foto | audio.
 function catalogo() {
@@ -39,6 +64,7 @@ function catalogo() {
   const ls = d => { try { return fs.readdirSync(d); } catch { return []; } };
   for (const d of [...RUTAS.medios, RUTAS.audio]) {
     for (const f of ls(d)) {
+      if (f.startsWith(".")) continue;   // ocultos: «.trashed-…» de la papelera del móvil, ficheros de sistema
       const ruta = path.join(d, f);
       if (EXT_VIDEO.test(f)) meter(ruta, tieneAlfa(ruta) ? "animacion" : "video");
       else if (EXT_FOTO.test(f)) meter(ruta, "foto");
@@ -89,6 +115,11 @@ async function duracion(clave) {
 
 // porCPU: segundo intento sin la GPU, por si NVENC/CUDA no se llevan con ese archivo
 function argsProxy(m, salida, porCPU) {
+  if (m.tipo === "video" && esHDR(m.ruta)) return ["-y", ...(porCPU ? [] : ["-init_hw_device", "vulkan"]), "-i", m.ruta,
+    "-vf", (porCPU ? HDR_CPU : HDR_GPU) + ",scale=960:960:force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p",
+    "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
+    ...(porCPU ? ["-c:v", "libx264", "-preset", "veryfast", "-crf", "26"] : ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "30"]),
+    "-g", "15", "-bf", "0", "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-movflags", "+faststart", "-f", "mp4", salida];
   if (m.tipo === "video") return ["-y", ...(porCPU ? [] : ["-hwaccel", "cuda"]), "-i", m.ruta,
     "-vf", "scale=960:960:force_original_aspect_ratio=decrease:force_divisible_by=2,format=yuv420p",
     ...(porCPU ? ["-c:v", "libx264", "-preset", "veryfast", "-crf", "26"] : ["-c:v", "h264_nvenc", "-preset", "p4", "-cq", "30"]),
@@ -203,7 +234,7 @@ async function hojaContactos(clave, desde, hasta, n = 12) {
   return { ruta: salida, tiempos };
 }
 
-module.exports = { catalogo, rutaProxy, rutaReproducible, duracion, pedirProxy, estadoProxies, fotograma, hojaContactos, transcripcion, ejecutar };
+module.exports = { catalogo, argsProxy, esHDR, HDR_GPU, HDR_CPU, rutaProxy, rutaReproducible, duracion, pedirProxy, estadoProxies, fotograma, hojaContactos, transcripcion, ejecutar };
 
 // node src/medios.js --proyecto <carpeta>  → genera todos los proxies que falten
 if (require.main === module) {

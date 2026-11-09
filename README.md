@@ -19,8 +19,15 @@ No usa la API de Claude: es un servidor MCP local que Claude Code (o cualquier c
 - Editor de cada clip (doble clic): alarga o acorta el corte por delante y por detrás, o desliza el trozo
   que se ve, sobre el vídeo original con miniaturas y transcripción; lo que va detrás se mueve para que encaje.
 
-**Todavía no exporta el vídeo final.** Sirve para decidir el montaje; el render se hace aparte
-(Archivo › Exportar › Para DaVinci Resolve / Final Cut genera un FCPXML con los originales).
+- Fundidos de audio de entrada y salida por clip (`fundido_entrada` / `fundido_salida`, en segundos).
+
+**Exportar el vídeo** (con el editor abierto, Python 3 con Pillow y ffmpeg; usa NVENC si hay NVIDIA):
+
+    python herramientas/exportar_video.py --proyecto <carpeta> --salida montaje.mp4 [--alto 1080] [--desde s --hasta s]
+
+Saca lo que se ve en el editor: imagen, animaciones con transparencia, carteles de etiqueta con su caída,
+rótulos, fotos con zoom y la mezcla de audio con volúmenes y fundidos (sin las notas de guion). Para acabarlo
+en DaVinci Resolve o Final Cut, Archivo › Exportar genera un FCPXML con los originales.
 
 ## Menús
 
@@ -73,6 +80,7 @@ mi-video/
 | `fps` | Fotogramas por segundo del montaje (30) |
 | `medios` | Carpetas con el material, relativas al proyecto o absolutas (`["medios"]`) |
 | `transcripciones` | JSON con lo que se dice en cada vídeo: `{ "video_sin_extension": [{ "inicio", "fin", "texto" }] }` |
+| `encuadre` | Vídeos y fotos que no son 16:9: sin poner se ven enteros con bandas; `"arriba"`, `"centro"` o `"abajo"` llenan el 16:9 recortando y conservan esa parte (p. ej. cámara 4:3 en el casco o el manillar: `"arriba"`) |
 | `herramientas.deepfilter` | Ruta a `deepFilter` para limpiar el audio con DeepFilterNet |
 | `herramientas.modeloDeepFilter` | Carpeta del modelo DeepFilterNet3 |
 
@@ -116,6 +124,7 @@ por su cuenta, así que también puedes trabajar desde el navegador.
 | Tecla | Acción |
 |---|---|
 | Espacio | Reproducir / parar |
+| < / > · botón 1x | Velocidad de reproducción: 1x, 1,5x o 2x para revisar más rápido |
 | ← / → | Fotograma anterior / siguiente (Mayús: 1 s) |
 | Inicio / Fin | Principio / final del montaje |
 | S o Ctrl+B | Dividir en el cabezal |

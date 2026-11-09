@@ -11,6 +11,8 @@ let P = null;                 // proyecto
 let medios = {};              // clave -> { tipo, dur, listo }
 let sel = new Set();          // ids de clips seleccionados
 let t = 0, reproduciendo = false, relojPerf = 0, relojT = 0;
+const VELOCIDADES = [1, 1.5, 2];
+let velocidad = VELOCIDADES.includes(+localStorage.velocidad) ? +localStorage.velocidad : 1;   // para revisar el montaje más rápido
 let pps = +localStorage.pps || 12;   // píxeles por segundo en la línea de tiempo
 let comentarioActivo = null;
 let ultimoAviso = 0, ultimaOrden = 0;
@@ -168,13 +170,17 @@ function sincronizar(el, objetivo, c, p) {
     g.subida.gain.value = c.realce ? 6 : 0;   // +15 dB a lo que queda por debajo del umbral
     if (ctxAudio.state === "suspended" && reproduciendo) ctxAudio.resume();
   }
-  const vol = (p.mute || c.mute) ? 0 : (c.volumen ?? 1);
+  // Fundidos de audio: el volumen sube al empezar el clip y baja al acabar (segundos en fundido_entrada / _salida)
+  const fe = c.fundido_entrada > 0 ? Math.min(1, Math.max(0, (t - c.inicio) / c.fundido_entrada)) : 1;
+  const fs = c.fundido_salida > 0 ? Math.min(1, Math.max(0, (finC(c) - t) / c.fundido_salida)) : 1;
+  const vol = (p.mute || c.mute) ? 0 : (c.volumen ?? 1) * fe * fs;
   el.muted = vol === 0;
   el.volume = Math.max(0, Math.min(1, vol));
   if (el.readyState < 1) return;
+  if (el.playbackRate !== velocidad) el.playbackRate = velocidad;
   const ahora = performance.now();
   if (reproduciendo) {
-    if (Math.abs(el.currentTime - objetivo) > 0.3 && !el.seeking && ahora - (el._salto || 0) > 800) { el.currentTime = objetivo; el._salto = ahora; }
+    if (Math.abs(el.currentTime - objetivo) > 0.3 * velocidad && !el.seeking && ahora - (el._salto || 0) > 800) { el.currentTime = objetivo; el._salto = ahora; }
     if (el.paused) el.play().catch(() => {});
   } else {
     if (!el.paused) el.pause();
@@ -189,6 +195,18 @@ function precargar(L, pid, c, actual) {
   const libre = L.v.find(v => v !== actual);
   if (!libre) return;
   if (libre.dataset.medio !== sig.medio) cargar(libre, sig.medio, sig.entrada);
+  else if (reproduciendo && sig.inicio - t < 0.35 * velocidad && libre.readyState >= 2) {
+    // Arranca un poco antes del corte, sin verse ni oírse, para que en el corte ya esté en marcha (si arrancara
+    // justo en el corte, se quedaría unas décimas congelado y el corte parecería llegar tarde)
+    libre.dataset.preroll = "1";
+    libre.muted = true;
+    if (libre.playbackRate !== velocidad) libre.playbackRate = velocidad;
+    if (libre.paused) {
+      const objetivo = Math.max(0, (sig.entrada || 0) - (sig.inicio - t));
+      if (Math.abs(libre.currentTime - objetivo) > 0.05 && !libre.seeking) libre.currentTime = objetivo;
+      libre.play().catch(() => {});
+    }
+  }
   else if (libre.readyState >= 1 && libre.paused && !libre.seeking && Math.abs(libre.currentTime - sig.entrada) > 0.1) libre.currentTime = sig.entrada;
 }
 // Cartel de etiqueta de recambio: entra cayendo con un pequeño giro y sale fundiendo. Depende solo del
@@ -254,7 +272,8 @@ function pintarVisor() {
       if (L.rot.className !== clase) L.rot.className = clase;
       for (const el of [...L.v, L.img]) el.classList.toggle("vis", el === mostrar && !(c && c.oculto));
     }
-    for (const v of L.v) if (v !== mostrar && !v.paused) v.pause();
+    if (mostrar && mostrar.dataset) mostrar.dataset.preroll = "";
+    for (const v of L.v) if (v !== mostrar && !v.paused && !v.dataset.preroll) v.pause();
     if (!p.oculta && L.v) precargar(L, p.id, c, mostrar && mostrar.tagName !== "IMG" ? mostrar : null);
   }
   // Voz en off del guion como subtítulo y nota del plano debajo del visor
@@ -286,20 +305,51 @@ function play() {
 function parar() {
   reproduciendo = false;
   $("#bPlay").innerHTML = ico("play");
-  for (const L of Object.values(capas)) L.v.forEach(v => v.pause());
+  for (const L of Object.values(capas)) L.v.forEach(v => { v.pause(); v.dataset.preroll = ""; });
   t = Math.round(t * FPS) / FPS;
   guardarCabezal();
 }
+// Cambia la velocidad de reproducción (1x, 1,5x, 2x). El reloj se reinicia en el punto actual para no saltar.
+function ponerVelocidad(v) {
+  velocidad = v;
+  try { localStorage.velocidad = v; } catch {}
+  if (reproduciendo) { relojT = t; relojPerf = performance.now(); }
+  for (const L of Object.values(capas)) L.v.forEach(el => { el.playbackRate = v; });
+  $("#bVel").textContent = String(v).replace(".", ",") + "x";
+  $("#bVel").classList.toggle("activa", v !== 1);
+}
+const cambiarVelocidad = paso => {
+  const i = VELOCIDADES.indexOf(velocidad);
+  ponerVelocidad(VELOCIDADES[paso === 0 ? (i + 1) % VELOCIDADES.length : Math.max(0, Math.min(VELOCIDADES.length - 1, i + paso))]);
+};
 let tGuardar;
 function guardarCabezal() {
   clearTimeout(tGuardar);
   if (!reproduciendo) tGuardar = setTimeout(() => api("/api/estado", { cabezal: Math.round(t * 1000) / 1000 }).catch(() => {}), 400);
 }
+// Segundo del montaje según el audio que está sonando (el clip de audio más largo bajo el cabezal, que suele
+// ser la música), o null si no suena ninguno ya arrancado
+function tiempoAudio() {
+  let mejor = null;
+  for (const p of P.pistas) {
+    const L = capas[p.id];
+    if (!L || !L.audio || p.mute || p.oculta) continue;
+    const c = clipEn(p.id, t);
+    if (!c || !c.medio || c.mute || (mejor && c.duracion <= mejor.c.duracion)) continue;
+    const el = L.v.find(v => v.dataset.uso === "actual" && v.dataset.medio === c.medio);
+    if (el && !el.paused && !el.seeking && el.readyState >= 3) mejor = { c, el };
+  }
+  return mejor ? mejor.c.inicio + mejor.el.currentTime - (mejor.c.entrada || 0) : null;
+}
 let ultimoTc = "";
 function bucle() {
   if (P) {
     if (reproduciendo) {
-      t = relojT + (performance.now() - relojPerf) / 1000;
+      t = relojT + (performance.now() - relojPerf) / 1000 * velocidad;
+      // Mientras suena música el reloj la sigue a ella (corrigiendo poco a poco para no dar saltos): así los
+      // cortes caen donde suenan los golpes aunque el audio arranque tarde o se retrase.
+      const m = tiempoAudio();
+      if (m !== null && Math.abs(m - t) < 0.6 * velocidad) { relojT += (m - t) * 0.25; t = relojT + (performance.now() - relojPerf) / 1000 * velocidad; }
       if (t >= total()) { t = total(); parar(); }
     }
     pintarVisor();
@@ -956,6 +1006,8 @@ $("#bComentar").onclick = abrirComentario;
 $("#bMas").onclick = () => zoom(pps * 1.5);
 $("#bMenos").onclick = () => zoom(pps / 1.5);
 $("#bAjustar").onclick = () => ajustar();
+$("#bVel").onclick = () => cambiarVelocidad(0);
+ponerVelocidad(velocidad);
 $("#bRehacer").onclick = () => rehacer();
 $("#chkSubs").onchange = () => localStorage.subs = $("#chkSubs").checked ? "1" : "0";
 if (localStorage.subs === "0") $("#chkSubs").checked = false;
@@ -1056,7 +1108,7 @@ function verAtajos() {
   const A = [["Espacio", "Reproducir / parar"], ["← / →", "Fotograma anterior / siguiente (Mayús: 1 s)"], ["Inicio · Fin", "Principio / final del montaje"],
     ["S · Ctrl+B", "Dividir en el cabezal"], ["Supr", "Borrar (Mayús+Supr cierra el hueco)"], ["Intro · doble clic", "Editar el clip seleccionado"],
     ["C", "Comentar en el cabezal"], ["M", "Marcador en el cabezal"], ["Ctrl+Z · Ctrl+Y", "Deshacer / rehacer"], ["Ctrl+A", "Seleccionar todo"],
-    ["Ctrl+S", "Guardar versión"], ["+ · − · Ctrl+rueda", "Zoom de la línea de tiempo"], ["Alt al arrastrar", "Sin imán"],
+    ["Ctrl+S", "Guardar versión"], ["+ · − · Ctrl+rueda", "Zoom de la línea de tiempo"], ["Alt al arrastrar", "Sin imán"], ["< · >", "Más lenta / más rápida la reproducción (1x, 1,5x, 2x)"],
     ["Mayús al arrastrar un borde", "Recorta y mueve todo lo que va detrás"], ["F5 · F11 · F12", "Recargar · pantalla completa · depuración"]];
   if (ESCRITORIO) A.push(["Ctrl+N · Ctrl+O · Ctrl+Q", "Proyecto nuevo · abrir · salir"]);
   dialogo("Atajos de teclado", `<table>${A.map(([k, d]) => `<tr><td>${d}</td><td>${k.split(" · ").map(x => `<kbd>${esc(x)}</kbd>`).join(" ")}</td></tr>`).join("")}</table>`, [{ texto: "Cerrar", accion: cerrarDialogo }]);
@@ -1112,6 +1164,9 @@ const ACCIONES = {
   "ajustar": ajustar,
   "ir-inicio": () => irA(0, true),
   "ir-fin": () => irA(total(), true),
+  "vel-1": () => ponerVelocidad(1),
+  "vel-1.5": () => ponerVelocidad(1.5),
+  "vel-2": () => ponerVelocidad(2),
   "ver-guion": () => alternar("chkSubs"),
   "ver-graficos": () => alternar("chkGraficos"),
   "panel-clip": () => pestana("clip"),
@@ -1137,6 +1192,7 @@ async function abrirMenu(m) {
   cerrarMenus();
   m.classList.add("abierto");
   m.querySelectorAll("[data-check]").forEach(b => b.classList.toggle("marcado", $("#" + b.dataset.check).checked));
+  m.querySelectorAll("[data-vel]").forEach(b => b.classList.toggle("marcado", +b.dataset.vel === velocidad));
   m.querySelector('[data-accion="editar-clip"]')?.toggleAttribute("disabled", sel.size !== 1);
   for (const a of ["borrar", "borrar-hueco"]) m.querySelector(`[data-accion="${a}"]`)?.toggleAttribute("disabled", !sel.size);
   if (ESCRITORIO && m.querySelector("#menuRecientes")) {
@@ -1188,6 +1244,8 @@ document.addEventListener("keydown", e => {
   else if (k === "m" || k === "M") { e.preventDefault(); marcadorAqui(); }
   else if (k === "s" || k === "S" || (k === "b" && e.ctrlKey)) { e.preventDefault(); dividir(); }
   else if (k === "c" || k === "C") { e.preventDefault(); abrirComentario(); }
+  else if (k === ">") cambiarVelocidad(1);
+  else if (k === "<") cambiarVelocidad(-1);
   else if (k === "+") zoom(pps * 1.5);
   else if (k === "-") zoom(pps / 1.5);
   else if (k === "Escape") seleccionar([]);
@@ -1248,7 +1306,7 @@ function conectar() {
   t = Math.min(est.cabezal || 0, total());
   sel = new Set((est.seleccion || []).filter(id => P.clips.some(c => c.id === id)));
   $("#titulo").textContent = P.nombre || "Clauditor";
-  fetch("/api/info").then(r => r.json()).then(i => { infoProyecto = i; $("#nombreProyecto").textContent = i.carpeta || ""; $("#nombreProyecto").title = "Carpeta del proyecto"; }).catch(() => {});
+  fetch("/api/info").then(r => r.json()).then(i => { infoProyecto = i; if (i.encuadre) $("#capas").dataset.encuadre = i.encuadre;$("#nombreProyecto").textContent = i.carpeta || ""; $("#nombreProyecto").title = "Carpeta del proyecto"; }).catch(() => {});
   alCambiarProyecto();
   cargarMedios().then(dibujarLinea, () => {});
   centrarEn(t);

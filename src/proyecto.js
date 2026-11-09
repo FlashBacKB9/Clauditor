@@ -43,7 +43,14 @@ function cargar() { return JSON.parse(fs.readFileSync(FICH, "utf8")); }
 function escribir(p) {
   const tmp = FICH + ".tmp";
   fs.writeFileSync(tmp, JSON.stringify(p, null, 1));
-  fs.renameSync(tmp, FICH);
+  // En Windows el antivirus o la sincronización a veces bloquean el fichero un instante (EPERM/EBUSY): reintentar
+  for (let i = 0; ; i++) {
+    try { fs.renameSync(tmp, FICH); return; }
+    catch (e) {
+      if (i >= 20 || !["EPERM", "EBUSY", "EACCES"].includes(e.code)) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
 }
 
 function cargarEstado() {
@@ -79,13 +86,13 @@ const OPS = {
       ...(a.medio ? { medio: a.medio, entrada: r3(a.entrada ?? 0) } : {}),
       ...(a.texto ? { texto: a.texto } : {}),
     };
-    for (const k of ["volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x"]) if (a[k] !== undefined) c[k] = a[k];
+    for (const k of ["volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x", "fundido_entrada", "fundido_salida"]) if (a[k] !== undefined) c[k] = a[k];
     p.clips.push(c);
     ordenar(p);
     return `añadido ${c.id} (${c.medio || "rótulo"}) en ${c.pista} a ${c.inicio}s`;
   },
   modificar_clips(p, { ids, cambios }) {
-    const permitidos = ["pista", "inicio", "duracion", "medio", "entrada", "texto", "volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x"];
+    const permitidos = ["pista", "inicio", "duracion", "medio", "entrada", "texto", "volumen", "mute", "oculto", "zoom", "nota", "color", "opcional", "posicion", "estilo", "ref", "tamano", "eco", "realce", "desplaza_x", "fundido_entrada", "fundido_salida"];
     for (const id of ids) {
       const c = clip(p, id);
       for (const [k, v] of Object.entries(cambios)) {
