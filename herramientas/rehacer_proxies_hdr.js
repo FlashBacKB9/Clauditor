@@ -17,4 +17,4 @@ const uno = (k, m, porCPU) => new Promise(ok => {
 });
 async function hilo() { while (i < lista.length) { const [k, m] = lista[i++]; await uno(k, m, false); } }
 console.log(`Proxies HDR por rehacer: ${lista.length}`);
-Promise.all([hilo(), hilo()]).then(() => console.log("HECHO"));
+Promise.all([hilo(), hilo(), hilo()]).then(() => console.log("HECHO"));

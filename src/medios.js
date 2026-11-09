@@ -50,9 +50,11 @@ function esHDR(ruta) {
   fs.writeFileSync(FICH_HDR, JSON.stringify(hdrs, null, 1));
   return h;
 }
+// Retoque tras convertir: el HDR pasado a SDR queda algo plano frente a lo grabado en SDR
+const RETOQUE = "eq=contrast=1.10:brightness=-0.03:saturation=1.15";
 // Filtros de HDR a SDR (BT.709): libplacebo en la GPU con Vulkan o, si falla, zscale + tonemap en la CPU
-const HDR_GPU = "libplacebo=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv:tonemapping=bt.2390:format=yuv420p";
-const HDR_CPU = "zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,tonemap=mobius:param=0.3:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
+const HDR_GPU = "libplacebo=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv:tonemapping=bt.2390:format=yuv420p," + RETOQUE;
+const HDR_CPU = "zscale=t=linear:npl=203,format=gbrpf32le,zscale=p=bt709,tonemap=mobius:param=0.3:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p," + RETOQUE;
 
 // Clave de cada medio = nombre de archivo (si dos carpetas tienen uno con el mismo nombre, vale el primero).
 // Devuelve { clave: { ruta, tipo } } con tipo video | animacion | foto | audio.
